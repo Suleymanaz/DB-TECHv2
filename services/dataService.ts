@@ -311,7 +311,7 @@ class DataService {
           type: d.type,
           contactId: d.contact_id,
           contactName: d.contact_name,
-          total_amount: Number(d.total_amount),
+          totalAmount: Number(d.total_amount),
           date: d.date,
           user: d.user_name,
           isReturn: d.is_return
