@@ -2,42 +2,67 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { Product, Contact, Transaction, User, UserRole, TransactionItem, TransactionType, Tenant } from '../types';
 
-// Not: Demo verileri (INITIAL_PRODUCTS vb.) artık import edilmiyor.
-// Satışa hazır versiyonda veritabanı esastır.
-
 class DataService {
   private useLive = isSupabaseConfigured();
 
-  // Bağlantı Testi
+  // Gelişmiş Bağlantı Testi
   async testConnection(): Promise<{ success: boolean; message: string; details?: string }> {
     if (!this.useLive) return { success: false, message: 'Supabase ayarları (.env) eksik.' };
+    
     try {
-      // Önce auth servisini kontrol et (En basit ping)
-      const { data: authData, error: authError } = await supabase.auth.getSession();
-      if (authError) throw new Error("Auth Servisi Hatası: " + authError.message);
+      // 1. ADIM: Sunucuya ulaşılabiliyor mu? (Auth Servisi)
+      const { error: authError } = await supabase.auth.getSession();
+      if (authError) {
+          throw new Error("Auth Servisi Hatası: " + (authError.message || "Erişim Reddedildi"));
+      }
 
-      // Sonra veritabanı tablosunu kontrol et
-      const { error } = await supabase.from('tenants').select('count', { count: 'exact', head: true });
+      // 2. ADIM: Tablolar var mı? (Tenants tablosunu kontrol et)
+      // count yerine basit bir select sorgusu yapıyoruz.
+      const { error: tableError } = await supabase.from('tenants').select('id').limit(1);
       
-      if (error) {
-          // Tablo yok hatası (42P01 - undefined_table) genellikle "relation ... does not exist" döner
-          if (error.code === '42P01' || error.message.includes('does not exist')) {
-              return { 
-                  success: false, 
-                  message: 'Tablolar Oluşturulmamış!', 
-                  details: 'SQL Editor üzerinden veritabanı kurulum kodlarını çalıştırmanız gerekiyor.' 
-              };
+      if (tableError) {
+          console.error("Tablo Hatası Detay:", tableError);
+          
+          // Hata Kodu 42P01: Tablo yok (undefined_table)
+          if (tableError.code === '42P01' || tableError.message?.includes('does not exist')) {
+             return { 
+                 success: false, 
+                 message: 'KURULUM GEREKLİ: Tablolar Bulunamadı!', 
+                 details: 'Veritabanınız boş görünüyor. Lütfen Supabase SQL Editor menüsünde size verilen SQL kurulum kodlarını çalıştırın.' 
+             };
           }
-          throw error;
+          
+          // Hata Kodu 42501: Yetki yok (RLS Policy hatası)
+          if (tableError.code === '42501') {
+             return { 
+                 success: false, 
+                 message: 'Yetki Hatası (RLS)', 
+                 details: 'Tablolar var ancak okuma izni yok. SQL kodlarını tekrar çalıştırarak güvenlik politikalarını (RLS) güncelleyin.' 
+             };
+          }
+
+          throw tableError;
       }
-      return { success: true, message: 'Supabase Bağlantısı Başarılı! Sistem aktif.' };
+
+      return { success: true, message: 'Bağlantı Başarılı!', details: 'Veritabanı ve tablolar hazır.' };
+
     } catch (err: any) {
-      console.error("Connection Check Failed:", err);
-      // Ağ hatası veya proje duraklatılmış olabilir
-      if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('network'))) {
-          return { success: false, message: 'Ağ Bağlantı Hatası', details: 'İnternet bağlantınızı kontrol edin veya Supabase projesinin "Paused" (duraklatılmış) olmadığından emin olun.' };
+      console.error("Genel Bağlantı Hatası:", err);
+      
+      let failReason = "Bilinmeyen Hata";
+      if (err instanceof Error) failReason = err.message;
+      else if (typeof err === 'string') failReason = err;
+      else if (err?.message) failReason = err.message;
+
+      if (failReason.includes('Failed to fetch') || failReason.includes('network')) {
+          return { 
+              success: false, 
+              message: 'Sunucuya Ulaşılamıyor', 
+              details: 'İnternet bağlantınızı kontrol edin. Supabase projeniz "Paused" (uyku) modunda olabilir.' 
+          };
       }
-      return { success: false, message: 'Veritabanı Hatası: ' + err.message };
+      
+      return { success: false, message: 'Bağlantı Hatası', details: failReason };
     }
   }
 
@@ -63,11 +88,9 @@ class DataService {
             .single();
 
           // 2. SÜPER ADMIN KURTARMA (Bootstrap)
-          // Eğer giriş yapan senin mail adresin ise ve profili yoksa, onu DB_TECH_ADMIN olarak oluştur.
           if (data.user.email === 'odabasisuleyman2015@gmail.com') {
-              // Profil yoksa veya yetkisi admin değilse düzelt
               if (!profile || profile.role !== 'DB_TECH_ADMIN') {
-                  console.log("Süper Admin (Süleyman Odabaşı) profili senkronize ediliyor...");
+                  console.log("Süper Admin profili oluşturuluyor...");
                   
                   const adminProfile = {
                       id: data.user.id,
@@ -81,24 +104,20 @@ class DataService {
                   if (!upsertError) {
                       profile = adminProfile;
                   } else {
-                      console.error("Admin oluşturma hatası:", upsertError);
-                      // Profil tablosu yoksa bu hatayı döner, kullanıcıya bildir.
-                      if (upsertError.message.includes('does not exist')) {
-                          return { user: null, error: "Veritabanı tabloları eksik. Lütfen SQL kodlarını çalıştırın." };
+                      // Eğer profil oluştururken tablo yok hatası alırsak login'i durdurup uyarı verelim
+                      if (upsertError.code === '42P01') {
+                          return { user: null, error: "Giriş başarısız: Veritabanı tabloları eksik. Lütfen SQL kurulumunu yapın." };
                       }
                   }
               }
           }
 
           if (!profile) {
-              // Profil yoksa (RLS engelliyor olabilir veya tablo bozuktur)
-              if (profileError) {
-                  console.error("Profil Çekme Hatası:", profileError);
-                  if (profileError.code === 'PGRST116') {
-                       return { user: null, error: "Kullanıcı hesabınız var ancak profil kaydınız eksik. Yöneticinize başvurun." };
-                  }
+              if (profileError && profileError.code === 'PGRST116') {
+                   // Profil kaydı hiç yok
+                   return { user: null, error: "Kullanıcı hesabınız var ancak yetki profiliniz oluşturulmamış. SQL kodlarını tekrar çalıştırın." };
               }
-              return { user: null, error: "Kullanıcı profili bulunamadı." };
+              return { user: null, error: "Profil verisi alınamadı. Tabloları kontrol edin." };
           }
 
           return {
@@ -124,7 +143,6 @@ class DataService {
 
   async getAllTenants(): Promise<Tenant[]> {
       if (!this.useLive) return [];
-      // GLOBAL_HEAD hariç diğer firmaları getir
       const { data, error } = await supabase.from('tenants').select('*').neq('id', 'GLOBAL_HEAD');
       if (error) { console.error(error); return []; }
       return data.map((t: any) => ({
@@ -167,13 +185,7 @@ class DataService {
     if (!this.useLive) return { success: false, error: "Bağlantı yok" };
     if (tenantId === 'GLOBAL_HEAD') return { success: false, error: "Ana şirket silinemez!" };
 
-    // Önce kullanıcıları Auth'dan silmemiz gerekir ama Supabase Client tarafında admin yetkisi kısıtlıdır.
-    // Bu yüzden şimdilik sadece tablodan siliyoruz. Gerçek production ortamında Edge Function kullanılır.
-    
-    // Profilleri sil (Cascade çalışır ama emin olalım)
     await supabase.from('profiles').delete().eq('company_id', tenantId);
-
-    // Şirketi sil
     const { error } = await supabase.from('tenants').delete().eq('id', tenantId);
 
     if (error) return { success: false, error: error.message };
@@ -212,7 +224,6 @@ class DataService {
   }
 
   // --- DATA METHODS (CRUD) ---
-  // Artık LocalStorage kullanılmıyor. Veritabanı boşsa boş döner.
 
   async getProducts(companyId?: string): Promise<Product[]> {
     if (!this.useLive || !companyId) return [];
@@ -237,7 +248,7 @@ class DataService {
     if (!this.useLive || !companyId) return;
 
     await supabase.from('products').upsert({
-        id: product.id.length < 10 ? undefined : product.id, // Yeni ürünse ID'yi Supabase üretsin
+        id: product.id.length < 10 ? undefined : product.id, 
         name: product.name,
         sku: product.sku,
         category: product.category,
@@ -300,7 +311,7 @@ class DataService {
           type: d.type,
           contactId: d.contact_id,
           contactName: d.contact_name,
-          totalAmount: Number(d.total_amount),
+          total_amount: Number(d.total_amount),
           date: d.date,
           user: d.user_name,
           isReturn: d.is_return
@@ -325,7 +336,6 @@ class DataService {
       // Stok güncelleme
       for (const item of tx.items) {
          if (item.productId && !item.isLabor) {
-             // Mevcut stoku çek
              const { data: currentProd } = await supabase.from('products').select('stock').eq('id', item.productId).single();
              if (currentProd) {
                  const change = tx.type === TransactionType.IN ? item.quantity : -item.quantity;
