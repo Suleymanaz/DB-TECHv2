@@ -14,7 +14,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [connectionDetails, setConnectionDetails] = useState<{status: string, message?: string, details?: string} | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,14 +40,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   const handleTestConnection = async () => {
-    setConnectionStatus('testing');
+    setConnectionDetails({ status: 'testing' });
     const result = await dataService.testConnection();
     if (result.success) {
-      setConnectionStatus('success');
-      alert(result.message);
+      setConnectionDetails({ status: 'success', message: result.message });
     } else {
-      setConnectionStatus('error');
-      alert(result.message);
+      setConnectionDetails({ status: 'error', message: result.message, details: result.details });
     }
   };
 
@@ -160,6 +158,24 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   <span>📡</span>
                   <span className="underline decoration-slate-700 underline-offset-4">Veritabanı Bağlantısını Test Et</span>
                 </button>
+                
+                {connectionDetails && (
+                    <div className={`mt-4 p-3 rounded-xl border text-[10px] text-left ${
+                        connectionDetails.status === 'success' 
+                        ? 'bg-green-500/10 border-green-500/20 text-green-400' 
+                        : connectionDetails.status === 'error'
+                        ? 'bg-red-500/10 border-red-500/20 text-red-400'
+                        : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
+                    }`}>
+                        {connectionDetails.status === 'testing' && <p>Bağlantı kontrol ediliyor...</p>}
+                        {connectionDetails.status !== 'testing' && (
+                            <>
+                                <p className="font-bold">{connectionDetails.message}</p>
+                                {connectionDetails.details && <p className="mt-1 opacity-75">{connectionDetails.details}</p>}
+                            </>
+                        )}
+                    </div>
+                )}
              </div>
           )}
 
