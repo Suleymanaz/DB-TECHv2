@@ -29,10 +29,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         }
         onLogin(user);
       } else {
-        setError(loginError || 'Giriş başarısız. Bilgilerinizi kontrol edin.');
+        // Hata mesajını daha açıklayıcı hale getirdik
+        setError(loginError || 'Giriş yapılamadı. Kullanıcı adı veya şifre hatalı olabilir.');
       }
     } catch (err: any) {
-      setError('Sistem hatası oluştu: ' + (err.message || 'Bilinmeyen hata'));
+      setError('Kritik Sistem Hatası: ' + (err.message || 'Bilinmeyen hata'));
     } finally {
       setLoading(false);
     }
