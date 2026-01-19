@@ -41,15 +41,15 @@ class DataService {
         .single();
 
       // 2. SÜPER ADMIN KURTARMA (Bootstrap)
-      // Eğer giriş yapan 'admin@dbtech.com' ise ve profili yoksa veya bozuksa, onu DB_TECH_ADMIN olarak oluştur.
-      if (data.user.email === 'admin@dbtech.com') {
+      // Eğer giriş yapan senin mail adresin ise ve profili yoksa, onu DB_TECH_ADMIN olarak oluştur.
+      if (data.user.email === 'odabasisuleyman2015@gmail.com') {
           if (!profile || profile.role !== 'DB_TECH_ADMIN') {
-              console.log("Süper Admin başlatılıyor...");
+              console.log("Süper Admin (Süleyman Odabaşı) başlatılıyor...");
               
               // Profil kaydını güncelle/oluştur
               const adminProfile = {
                   id: data.user.id,
-                  full_name: 'DB Tech Kurucu',
+                  full_name: 'Süleyman Odabaşı',
                   role: 'DB_TECH_ADMIN',
                   company_id: 'GLOBAL_HEAD',
                   company_name: 'DB Tech Global'
