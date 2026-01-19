@@ -1,0 +1,7 @@
+{
+  "name": "DB ERP - DB Tech Kurumsal Kaynak Planlama",
+  "description": "DB Tech tarafından geliştirilen, elektrik malzemeleri operasyonları için profesyonel stok, maliyet ve satış yönetim sistemi.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
