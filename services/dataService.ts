@@ -30,6 +30,14 @@ class DataService {
                  details: 'Veritabanı tabloları eksik. Lütfen verilen "db_setup.sql" dosyasını SQL Editor\'de çalıştırın.' 
              };
           }
+
+          if (tableError.code === '42501' || tableError.message?.includes('permission denied')) {
+             return { 
+                 success: false, 
+                 message: 'Erişim İzni Yok (Grants Missing)', 
+                 details: 'Tablo izinleri eksik. Lütfen güncellenmiş "db_setup.sql" dosyasını SQL Editor\'de çalıştırın.' 
+             };
+          }
           
           return { success: false, message: 'Veri Erişim Hatası', details: tableError.message };
       }
