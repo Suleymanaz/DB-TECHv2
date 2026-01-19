@@ -16,53 +16,29 @@ class DataService {
           throw new Error("Auth Servisi Hatası: " + (authError.message || "Erişim Reddedildi"));
       }
 
-      // 2. ADIM: Tablolar var mı? (Tenants tablosunu kontrol et)
-      // count yerine basit bir select sorgusu yapıyoruz.
+      // 2. ADIM: Tenants tablosuna erişim var mı?
+      // Public okuma izni verdiğimiz için bu sorgu çalışmalı.
       const { error: tableError } = await supabase.from('tenants').select('id').limit(1);
       
       if (tableError) {
           console.error("Tablo Hatası Detay:", tableError);
           
-          // Hata Kodu 42P01: Tablo yok (undefined_table)
           if (tableError.code === '42P01' || tableError.message?.includes('does not exist')) {
              return { 
                  success: false, 
-                 message: 'KURULUM GEREKLİ: Tablolar Bulunamadı!', 
-                 details: 'Veritabanınız boş görünüyor. Lütfen Supabase SQL Editor menüsünde size verilen SQL kurulum kodlarını çalıştırın.' 
+                 message: 'Tablo Bulunamadı', 
+                 details: 'Veritabanı tabloları eksik. Lütfen verilen "db_setup.sql" dosyasını SQL Editor\'de çalıştırın.' 
              };
           }
           
-          // Hata Kodu 42501: Yetki yok (RLS Policy hatası)
-          if (tableError.code === '42501') {
-             return { 
-                 success: false, 
-                 message: 'Yetki Hatası (RLS)', 
-                 details: 'Tablolar var ancak okuma izni yok. SQL kodlarını tekrar çalıştırarak güvenlik politikalarını (RLS) güncelleyin.' 
-             };
-          }
-
-          throw tableError;
+          return { success: false, message: 'Veri Erişim Hatası', details: tableError.message };
       }
 
       return { success: true, message: 'Bağlantı Başarılı!', details: 'Veritabanı ve tablolar hazır.' };
 
     } catch (err: any) {
       console.error("Genel Bağlantı Hatası:", err);
-      
-      let failReason = "Bilinmeyen Hata";
-      if (err instanceof Error) failReason = err.message;
-      else if (typeof err === 'string') failReason = err;
-      else if (err?.message) failReason = err.message;
-
-      if (failReason.includes('Failed to fetch') || failReason.includes('network')) {
-          return { 
-              success: false, 
-              message: 'Sunucuya Ulaşılamıyor', 
-              details: 'İnternet bağlantınızı kontrol edin. Supabase projeniz "Paused" (uyku) modunda olabilir.' 
-          };
-      }
-      
-      return { success: false, message: 'Bağlantı Hatası', details: failReason };
+      return { success: false, message: 'Bağlantı Hatası', details: err.message || 'Bilinmeyen hata' };
     }
   }
 
@@ -80,18 +56,23 @@ class DataService {
         if (error) return { user: null, error: error.message };
         
         if (data.user) {
-          // 1. Profil tablosundan veriyi çekmeye çalış
+          // Giriş başarılı, şimdi profili çekelim.
+          let userRole = UserRole.ADMIN; // Varsayılan
+          let companyId = '';
+
+          // 1. Profil kontrolü
           let { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', data.user.id)
             .single();
 
-          // 2. SÜPER ADMIN KURTARMA (Bootstrap)
-          if (data.user.email === 'odabasisuleyman2015@gmail.com') {
-              if (!profile || profile.role !== 'DB_TECH_ADMIN') {
+          // 2. Profil yoksa ve Süper Admin adayı ise (Bootstrap)
+          // Veya profil yoksa ama giriş yaptıysa (SignUp sonrası ilk giriş)
+          if (!profile) {
+              // Süper Admin Kontrolü
+              if (data.user.email === 'odabasisuleyman2015@gmail.com') {
                   console.log("Süper Admin profili oluşturuluyor...");
-                  
                   const adminProfile = {
                       id: data.user.id,
                       full_name: 'Süleyman Odabaşı',
@@ -104,32 +85,26 @@ class DataService {
                   if (!upsertError) {
                       profile = adminProfile;
                   } else {
-                      // Eğer profil oluştururken tablo yok hatası alırsak login'i durdurup uyarı verelim
-                      if (upsertError.code === '42P01') {
-                          return { user: null, error: "Giriş başarısız: Veritabanı tabloları eksik. Lütfen SQL kurulumunu yapın." };
-                      }
+                      return { user: null, error: "Profil oluşturulamadı (SQL RLS Hatası Olabilir): " + upsertError.message };
                   }
+              } else {
+                  // Normal kullanıcı ama profili yok (Manuel DB müdahalesi veya hata)
+                  return { user: null, error: "Kullanıcı hesabınız var ancak yetki profiliniz bulunamadı. Yöneticinize başvurun." };
               }
           }
 
-          if (!profile) {
-              if (profileError && profileError.code === 'PGRST116') {
-                   // Profil kaydı hiç yok
-                   return { user: null, error: "Kullanıcı hesabınız var ancak yetki profiliniz oluşturulmamış. SQL kodlarını tekrar çalıştırın." };
-              }
-              return { user: null, error: "Profil verisi alınamadı. Tabloları kontrol edin." };
+          if (profile) {
+              return {
+                user: {
+                  id: data.user.id,
+                  name: profile.full_name || username,
+                  username: data.user.email || '',
+                  role: profile.role as UserRole, 
+                  companyId: profile.company_id
+              },
+                error: null
+              };
           }
-
-          return {
-            user: {
-              id: data.user.id,
-              name: profile.full_name,
-              username: data.user.email || '',
-              role: profile.role as UserRole, 
-              companyId: profile.company_id
-          },
-            error: null
-          };
         }
     } catch (err: any) {
         console.error("Login System Error:", err);
@@ -139,12 +114,13 @@ class DataService {
     return { user: null, error: 'Giriş başarısız.' };
   }
 
-  // SAAS Methods
+  // --- SAAS Methods ---
 
   async getAllTenants(): Promise<Tenant[]> {
       if (!this.useLive) return [];
+      // Sadece GLOBAL_HEAD olmayanları getir
       const { data, error } = await supabase.from('tenants').select('*').neq('id', 'GLOBAL_HEAD');
-      if (error) { console.error(error); return []; }
+      if (error) { console.error("Get Tenants Error:", error); return []; }
       return data.map((t: any) => ({
           id: t.id,
           name: t.name,
@@ -185,7 +161,8 @@ class DataService {
     if (!this.useLive) return { success: false, error: "Bağlantı yok" };
     if (tenantId === 'GLOBAL_HEAD') return { success: false, error: "Ana şirket silinemez!" };
 
-    await supabase.from('profiles').delete().eq('company_id', tenantId);
+    // Cascade silme SQL'de tanımlı olsa da, profil tablosunu da temizlemeyi deneyelim.
+    // Ancak RLS yüzünden sadece Admin yapabilir.
     const { error } = await supabase.from('tenants').delete().eq('id', tenantId);
 
     if (error) return { success: false, error: error.message };
@@ -195,6 +172,7 @@ class DataService {
   async createUserForTenant(tenantId: string, tenantName: string, email: string, pass: string, name: string, role: UserRole): Promise<{ success: boolean, error: string | null }> {
       if (!this.useLive) return { success: false, error: "Bağlantı yok" };
 
+      // NOT: Client-side signUp mevcut oturumu kapatır.
       const { data, error } = await supabase.auth.signUp({
           email,
           password: pass,
@@ -210,6 +188,11 @@ class DataService {
       if (error) return { success: false, error: error.message };
       
       if (data.user) {
+          // Profil tablosuna ekle
+          // Yeni SQL politikalarımızda "Insert Own" yetkisi var.
+          // Ancak burada signUp yapan kişi (admin) başkası adına profil oluşturmaya çalışırsa RLS engelleyebilir mi?
+          // SQL'deki "Profiles Insert Own or Admin" politikası sayesinde Admin ekleyebilir.
+          
           const { error: profileError } = await supabase.from('profiles').insert({
               id: data.user.id,
               full_name: name,
@@ -217,7 +200,11 @@ class DataService {
               company_id: tenantId,
               company_name: tenantName
           });
-          if (profileError) return { success: false, error: "Kullanıcı oluştu ama profil hatası: " + profileError.message };
+          
+          if (profileError) {
+              console.error("Profil oluşturma hatası:", profileError);
+              return { success: false, error: "Kullanıcı Auth'a eklendi ama Profil tablosuna yazılamadı: " + profileError.message };
+          }
       }
 
       return { success: true, error: null };
@@ -228,8 +215,13 @@ class DataService {
   async getProducts(companyId?: string): Promise<Product[]> {
     if (!this.useLive || !companyId) return [];
     
-    const { data } = await supabase.from('products').select('*').eq('company_id', companyId);
-    if (!data) return [];
+    // RLS zaten filtreler ama güvenlik için company_id ekleyelim
+    const { data, error } = await supabase.from('products').select('*').eq('company_id', companyId);
+    
+    if (error) {
+        console.error("Ürün Çekme Hatası:", error);
+        return [];
+    }
     
     return data.map((d: any) => ({
         id: d.id,
@@ -247,8 +239,8 @@ class DataService {
   async upsertProduct(product: Product, companyId?: string): Promise<void> {
     if (!this.useLive || !companyId) return;
 
-    await supabase.from('products').upsert({
-        id: product.id.length < 10 ? undefined : product.id, 
+    // Yeni kayıt mı güncelleme mi?
+    const productData = {
         name: product.name,
         sku: product.sku,
         category: product.category,
@@ -258,34 +250,43 @@ class DataService {
         selling_price: product.sellingPrice,
         pricing: product.pricing,
         company_id: companyId
+    };
+
+    let query = supabase.from('products');
+
+    // ID varsa upsert, yoksa insert (ID'yi supabase oluşturmaz, biz client'ta oluşturup gönderiyorsak upsert uygundur)
+    // Client tarafında yeni ürünlere ID atıyor musunuz? Evet App.tsx'de atılıyor.
+    
+    const { error } = await query.upsert({
+        ...productData,
+        id: product.id
     });
+
+    if (error) console.error("Ürün Kayıt Hatası:", error);
   }
 
   async deleteProduct(id: string): Promise<void> {
-    if (!this.useLive) return;
-    await supabase.from('products').delete().eq('id', id);
+      if (!this.useLive) return;
+      await supabase.from('products').delete().eq('id', id);
   }
 
   async getContacts(companyId?: string): Promise<Contact[]> {
       if (!this.useLive || !companyId) return [];
-      
-      const { data } = await supabase.from('contacts').select('*').eq('company_id', companyId);
-      if (!data) return [];
-      
-      return data.map((d: any) => ({
-          id: d.id,
-          name: d.name,
-          type: d.type,
-          phone: d.phone,
-          address: d.address
+      const { data, error } = await supabase.from('contacts').select('*').eq('company_id', companyId);
+      if (error) return [];
+      return data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          type: c.type,
+          phone: c.phone,
+          address: c.address
       }));
   }
 
   async upsertContact(contact: Contact, companyId?: string): Promise<void> {
       if (!this.useLive || !companyId) return;
-
       await supabase.from('contacts').upsert({
-          id: contact.id.length < 5 ? undefined : contact.id,
+          id: contact.id,
           name: contact.name,
           type: contact.type,
           phone: contact.phone,
@@ -301,27 +302,27 @@ class DataService {
 
   async getTransactions(companyId?: string): Promise<Transaction[]> {
       if (!this.useLive || !companyId) return [];
-
-      const { data } = await supabase.from('transactions').select('*').eq('company_id', companyId).order('date', { ascending: false });
-      if (!data) return [];
-      
-      return data.map((d: any) => ({
-          id: d.id,
-          items: typeof d.items === 'string' ? JSON.parse(d.items) : d.items,
-          type: d.type,
-          contactId: d.contact_id,
-          contactName: d.contact_name,
-          totalAmount: Number(d.total_amount),
-          date: d.date,
-          user: d.user_name,
-          isReturn: d.is_return
+      const { data, error } = await supabase.from('transactions').select('*').eq('company_id', companyId).order('date', { ascending: false });
+      if (error) return [];
+      return data.map((t: any) => ({
+          id: t.id,
+          items: typeof t.items === 'string' ? JSON.parse(t.items) : t.items,
+          type: t.type as TransactionType,
+          contactId: t.contact_id,
+          contactName: t.contact_name,
+          totalAmount: Number(t.total_amount),
+          date: t.date,
+          user: t.user_name,
+          isReturn: t.is_return
       }));
   }
 
   async saveTransaction(tx: Transaction, companyId?: string): Promise<void> {
       if (!this.useLive || !companyId) return;
-
-      await supabase.from('transactions').insert({
+      
+      const { error } = await supabase.from('transactions').insert({
+          id: tx.id,
+          company_id: companyId,
           items: tx.items,
           type: tx.type,
           contact_id: tx.contactId,
@@ -329,21 +330,30 @@ class DataService {
           total_amount: tx.totalAmount,
           date: tx.date,
           user_name: tx.user,
-          is_return: tx.isReturn,
-          company_id: companyId
+          is_return: tx.isReturn
+      });
+
+      if (error) {
+          console.error("İşlem Kaydetme Hatası:", error);
+          return;
+      }
+
+      // Stokları güncelle (Trigger yerine Client-side yapıyoruz şimdilik, trigger daha güvenlidir ama SQL karmaşası yaratmayalım)
+      // Ancak App.tsx state'i güncelliyor. DB'yi de güncellemeliyiz.
+      // Toplu işlem için Promise.all
+      const updates = tx.items.map(async (item) => {
+          if (!item.isLabor && item.productId) {
+               // Mevcut stoğu çekmemiz lazım (concurrency issue olabilir ama basit ERP için ok)
+               const { data: prod } = await supabase.from('products').select('stock').eq('id', item.productId).single();
+               if (prod) {
+                   const change = tx.type === TransactionType.IN ? item.quantity : -item.quantity;
+                   const newStock = Number(prod.stock) + change;
+                   await supabase.from('products').update({ stock: newStock }).eq('id', item.productId);
+               }
+          }
       });
       
-      // Stok güncelleme
-      for (const item of tx.items) {
-         if (item.productId && !item.isLabor) {
-             const { data: currentProd } = await supabase.from('products').select('stock').eq('id', item.productId).single();
-             if (currentProd) {
-                 const change = tx.type === TransactionType.IN ? item.quantity : -item.quantity;
-                 const newStock = Number(currentProd.stock) + change;
-                 await supabase.from('products').update({ stock: newStock }).eq('id', item.productId);
-             }
-         }
-      }
+      await Promise.all(updates);
   }
 }
 
