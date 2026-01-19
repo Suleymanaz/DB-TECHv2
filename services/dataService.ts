@@ -9,14 +9,35 @@ class DataService {
   private useLive = isSupabaseConfigured();
 
   // Bağlantı Testi
-  async testConnection(): Promise<{ success: boolean; message: string }> {
+  async testConnection(): Promise<{ success: boolean; message: string; details?: string }> {
     if (!this.useLive) return { success: false, message: 'Supabase ayarları (.env) eksik.' };
     try {
+      // Önce auth servisini kontrol et (En basit ping)
+      const { data: authData, error: authError } = await supabase.auth.getSession();
+      if (authError) throw new Error("Auth Servisi Hatası: " + authError.message);
+
+      // Sonra veritabanı tablosunu kontrol et
       const { error } = await supabase.from('tenants').select('count', { count: 'exact', head: true });
-      if (error) throw error;
+      
+      if (error) {
+          // Tablo yok hatası (42P01 - undefined_table) genellikle "relation ... does not exist" döner
+          if (error.code === '42P01' || error.message.includes('does not exist')) {
+              return { 
+                  success: false, 
+                  message: 'Tablolar Oluşturulmamış!', 
+                  details: 'SQL Editor üzerinden veritabanı kurulum kodlarını çalıştırmanız gerekiyor.' 
+              };
+          }
+          throw error;
+      }
       return { success: true, message: 'Supabase Bağlantısı Başarılı! Sistem aktif.' };
     } catch (err: any) {
-      return { success: false, message: 'Bağlantı Hatası: ' + err.message };
+      console.error("Connection Check Failed:", err);
+      // Ağ hatası veya proje duraklatılmış olabilir
+      if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('network'))) {
+          return { success: false, message: 'Ağ Bağlantı Hatası', details: 'İnternet bağlantınızı kontrol edin veya Supabase projesinin "Paused" (duraklatılmış) olmadığından emin olun.' };
+      }
+      return { success: false, message: 'Veritabanı Hatası: ' + err.message };
     }
   }
 
@@ -25,59 +46,75 @@ class DataService {
         return { user: null, error: "Uygulama veritabanına bağlı değil. Lütfen .env dosyasını kontrol edin." };
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: username,
-      password: password,
-    });
+    try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: username,
+          password: password,
+        });
 
-    if (error) return { user: null, error: error.message };
-    
-    if (data.user) {
-      // 1. Profil tablosundan veriyi çekmeye çalış
-      let { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
+        if (error) return { user: null, error: error.message };
+        
+        if (data.user) {
+          // 1. Profil tablosundan veriyi çekmeye çalış
+          let { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
 
-      // 2. SÜPER ADMIN KURTARMA (Bootstrap)
-      // Eğer giriş yapan senin mail adresin ise ve profili yoksa, onu DB_TECH_ADMIN olarak oluştur.
-      if (data.user.email === 'odabasisuleyman2015@gmail.com') {
-          if (!profile || profile.role !== 'DB_TECH_ADMIN') {
-              console.log("Süper Admin (Süleyman Odabaşı) başlatılıyor...");
-              
-              // Profil kaydını güncelle/oluştur
-              const adminProfile = {
-                  id: data.user.id,
-                  full_name: 'Süleyman Odabaşı',
-                  role: 'DB_TECH_ADMIN',
-                  company_id: 'GLOBAL_HEAD',
-                  company_name: 'DB Tech Global'
-              };
+          // 2. SÜPER ADMIN KURTARMA (Bootstrap)
+          // Eğer giriş yapan senin mail adresin ise ve profili yoksa, onu DB_TECH_ADMIN olarak oluştur.
+          if (data.user.email === 'odabasisuleyman2015@gmail.com') {
+              // Profil yoksa veya yetkisi admin değilse düzelt
+              if (!profile || profile.role !== 'DB_TECH_ADMIN') {
+                  console.log("Süper Admin (Süleyman Odabaşı) profili senkronize ediliyor...");
+                  
+                  const adminProfile = {
+                      id: data.user.id,
+                      full_name: 'Süleyman Odabaşı',
+                      role: 'DB_TECH_ADMIN',
+                      company_id: 'GLOBAL_HEAD',
+                      company_name: 'DB Tech Global'
+                  };
 
-              const { error: upsertError } = await supabase.from('profiles').upsert(adminProfile);
-              if (!upsertError) {
-                  profile = adminProfile;
-              } else {
-                  console.error("Admin oluşturma hatası:", upsertError);
+                  const { error: upsertError } = await supabase.from('profiles').upsert(adminProfile);
+                  if (!upsertError) {
+                      profile = adminProfile;
+                  } else {
+                      console.error("Admin oluşturma hatası:", upsertError);
+                      // Profil tablosu yoksa bu hatayı döner, kullanıcıya bildir.
+                      if (upsertError.message.includes('does not exist')) {
+                          return { user: null, error: "Veritabanı tabloları eksik. Lütfen SQL kodlarını çalıştırın." };
+                      }
+                  }
               }
           }
-      }
 
-      if (!profile) {
-          return { user: null, error: "Kullanıcı profili bulunamadı. Sistem yöneticinizle görüşün." };
-      }
+          if (!profile) {
+              // Profil yoksa (RLS engelliyor olabilir veya tablo bozuktur)
+              if (profileError) {
+                  console.error("Profil Çekme Hatası:", profileError);
+                  if (profileError.code === 'PGRST116') {
+                       return { user: null, error: "Kullanıcı hesabınız var ancak profil kaydınız eksik. Yöneticinize başvurun." };
+                  }
+              }
+              return { user: null, error: "Kullanıcı profili bulunamadı." };
+          }
 
-      return {
-        user: {
-          id: data.user.id,
-          name: profile.full_name,
-          username: data.user.email || '',
-          role: profile.role as UserRole, 
-          companyId: profile.company_id
-        },
-        error: null
-      };
+          return {
+            user: {
+              id: data.user.id,
+              name: profile.full_name,
+              username: data.user.email || '',
+              role: profile.role as UserRole, 
+              companyId: profile.company_id
+          },
+            error: null
+          };
+        }
+    } catch (err: any) {
+        console.error("Login System Error:", err);
+        return { user: null, error: "Sistem hatası: " + err.message };
     }
     
     return { user: null, error: 'Giriş başarısız.' };
