@@ -46,6 +46,8 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
     const contact = contacts.find(c => c.id === selectedContactId);
     if (!contact) return alert('Lütfen bir tedarikçi seçin.');
 
+    // Fix: Added missing subtotal and totalDiscount properties to satisfy Transaction interface.
+    // In purchase module, subtotal equals totalAmount as there is no discount UI currently.
     onAddTransaction({
       id: Math.random().toString(36).substring(7).toUpperCase(),
       items: cart,
@@ -53,6 +55,8 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
       type: isReturn ? TransactionType.OUT : TransactionType.IN, 
       contactId: contact.id,
       contactName: contact.name,
+      subtotal: totalAmount,
+      totalDiscount: 0,
       totalAmount,
       date: new Date().toISOString(),
       user: 'Yönetici',
