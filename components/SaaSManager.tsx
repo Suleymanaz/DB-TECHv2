@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { dataService } from '../services/dataService';
-import { Tenant, User, UserRole } from '../types';
+import { Tenant, User, UserRole, AuditLog } from '../types';
+import { exportToCSV } from '../utils/helpers';
 
 interface SaaSManagerProps {
   onImpersonate: (user: User) => void;
@@ -11,16 +12,21 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
+  const [detailTab, setDetailTab] = useState<'users' | 'logs'>('users');
+  
   const [tenantUsers, setTenantUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [logFilter, setLogFilter] = useState({ start: '', end: '' });
+
   // Modals
   const [showCompanyModal, setShowCompanyModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
 
   // Forms
   const [newCompanyName, setNewCompanyName] = useState('');
-  
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPass, setNewUserPass] = useState('');
   const [newUserName, setNewUserName] = useState('');
@@ -33,9 +39,10 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
 
   useEffect(() => {
     if (selectedTenant) {
-        loadTenantUsers(selectedTenant.id);
+        if (detailTab === 'users') loadTenantUsers(selectedTenant.id);
+        if (detailTab === 'logs') loadAuditLogs(selectedTenant.id);
     }
-  }, [selectedTenant]);
+  }, [selectedTenant, detailTab, logFilter]);
 
   const loadTenants = async () => {
     setLoading(true);
@@ -51,182 +58,191 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
     setLoadingUsers(false);
   };
 
+  const loadAuditLogs = async (tenantId: string) => {
+    setLoadingLogs(true);
+    const logs = await dataService.getAuditLogs(tenantId, logFilter.start, logFilter.end);
+    setAuditLogs(logs);
+    setLoadingLogs(false);
+  };
+
+  const handleExportLogs = () => {
+    if (auditLogs.length === 0) return alert('Dışa aktarılacak kayıt yok.');
+    exportToCSV(auditLogs, `Log_Raporu_${selectedTenant?.name}_${new Date().toISOString().split('T')[0]}`);
+  };
+
+  const handleUpdateRole = async (user: User, newRole: UserRole) => {
+    if (!selectedTenant) return;
+    if (!window.confirm(`${user.name} kullanıcısının rolünü ${newRole} olarak değiştirmek istediğinize emin misiniz?`)) return;
+    
+    const { success, error } = await dataService.updateUserRole(user.id, newRole, selectedTenant.id);
+    if (success) {
+        alert('Rol güncellendi.');
+        loadTenantUsers(selectedTenant.id);
+    } else alert('Hata: ' + error);
+  };
+
+  const handleDeleteUser = async (user: User) => {
+    if (!selectedTenant) return;
+    if (!window.confirm(`${user.name} kullanıcısını sistemden silmek üzeresiniz. Onaylıyor musunuz?`)) return;
+    
+    const { success, error } = await dataService.deleteUser(user.id, selectedTenant.id);
+    if (success) {
+        alert('Kullanıcı silindi.');
+        loadTenantUsers(selectedTenant.id);
+    } else alert('Hata: ' + error);
+  };
+
   const handleCreateCompany = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
     const { success, error } = await dataService.createTenantOnly(newCompanyName);
     if (success) {
-        alert('Şirket kaydı açıldı. Şimdi detayına girip yönetici ekleyebilirsiniz.');
         setNewCompanyName('');
         setShowCompanyModal(false);
         loadTenants();
-    } else {
-        alert('Hata: ' + error);
-    }
+    } else alert('Hata: ' + error);
     setCreating(false);
   };
 
   const handleDeleteCompany = async (e: React.MouseEvent, tenant: Tenant) => {
     e.stopPropagation();
-    if (!window.confirm(`DİKKAT! ${tenant.name} şirketini ve tüm bağlı kullanıcılarını silmek üzeresiniz. Bu işlem geri alınamaz! Onaylıyor musunuz?`)) {
-      return;
-    }
-    
-    // İkinci güvenlik onayı
-    const verification = prompt(`Silme işlemini onaylamak için lütfen şirket adını yazınız: ${tenant.name}`);
-    if (verification !== tenant.name) {
-      alert("Şirket adı eşleşmedi, işlem iptal edildi.");
-      return;
-    }
-
+    if (!window.confirm(`${tenant.name} silinecek. Onaylıyor musunuz?`)) return;
     setLoading(true);
     const { success, error } = await dataService.deleteTenant(tenant.id);
-    if (success) {
-      alert(`${tenant.name} başarıyla silindi.`);
-      loadTenants();
-    } else {
-      alert('Silme hatası: ' + error);
-      setLoading(false);
-    }
+    if (success) loadTenants();
+    else { alert('Hata: ' + error); setLoading(false); }
   };
 
   const handleAddUser = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!selectedTenant) return;
-
-      const confirmMsg = "Yeni bir kullanıcı oluşturduğunuzda Supabase session'ı bu kullanıcıya geçebilir. İşlem sonunda tekrar giriş yapmanız gerekebilir.";
-      if (!window.confirm(confirmMsg)) return;
-
       setCreating(true);
-      const { success, error } = await dataService.createUserForTenant(
-          selectedTenant.id, 
-          selectedTenant.name, 
-          newUserEmail, 
-          newUserPass, 
-          newUserName, 
-          newUserRole
-      );
-
+      const { success, error } = await dataService.createUserForTenant(selectedTenant.id, selectedTenant.name, newUserEmail, newUserPass, newUserName, newUserRole);
       if (success) {
-          alert('Kullanıcı başarıyla şirkete eklendi.');
-          setNewUserEmail('');
-          setNewUserPass('');
-          setNewUserName('');
           setShowUserModal(false);
           loadTenantUsers(selectedTenant.id);
-          // Session fix uyarısı
-          alert('DİKKAT: Güvenlik gereği yeni kullanıcının oturumu açılmış olabilir. Sayfayı yenileyip tekrar giriş yapınız.');
-          window.location.reload();
-      } else {
-          alert('Hata: ' + error);
-      }
+          alert('Kullanıcı eklendi. Oturum güvenliği için sayfayı yenilemeniz önerilir.');
+      } else alert('Hata: ' + error);
       setCreating(false);
   };
 
-  const handleImpersonateClick = (user: User) => {
-      if (window.confirm(`${user.name} kullanıcısı (Şirket: ${selectedTenant?.name}) olarak sisteme giriş yapılacak. Onaylıyor musunuz?`)) {
-          onImpersonate(user);
-      }
-  };
-
-  // --- VIEWS ---
-
   if (selectedTenant) {
-      // COMPANY DETAIL VIEW
       return (
         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-            <div className="flex items-center justify-between">
-                <button onClick={() => setSelectedTenant(null)} className="flex items-center text-slate-500 hover:text-indigo-600 transition font-bold text-sm">
-                    <span className="mr-2">←</span> Firma Listesine Dön
-                </button>
-            </div>
+            <button onClick={() => setSelectedTenant(null)} className="flex items-center text-slate-500 hover:text-indigo-600 transition font-bold text-sm">
+                <span className="mr-2">←</span> Firma Listesine Dön
+            </button>
 
             <div className="bg-white rounded-3xl border border-gray-200 shadow-xl overflow-hidden">
                 <div className="p-8 border-b border-gray-100 bg-slate-50 flex justify-between items-center">
                     <div>
                         <h2 className="text-3xl font-black text-slate-800">{selectedTenant.name}</h2>
-                        <p className="text-xs font-mono text-slate-400 mt-1">Tenant ID: {selectedTenant.id}</p>
+                        <div className="flex bg-slate-200 p-1 rounded-xl mt-4 w-fit">
+                            <button onClick={() => setDetailTab('users')} className={`px-6 py-2 rounded-lg text-xs font-bold transition ${detailTab === 'users' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>PERSONELLER</button>
+                            <button onClick={() => setDetailTab('logs')} className={`px-6 py-2 rounded-lg text-xs font-bold transition ${detailTab === 'logs' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>LOG KAYITLARI</button>
+                        </div>
                     </div>
-                    <button onClick={() => setShowUserModal(true)} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition">
-                        + Personel Ekle
-                    </button>
+                    {detailTab === 'users' && (
+                        <button onClick={() => setShowUserModal(true)} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition">+ Personel Ekle</button>
+                    )}
+                    {detailTab === 'logs' && (
+                        <button onClick={handleExportLogs} className="px-6 py-3 bg-slate-800 text-white font-bold rounded-xl shadow-lg hover:bg-slate-900 transition flex items-center">
+                           <span className="mr-2">📊</span> CSV Rapor Al
+                        </button>
+                    )}
                 </div>
 
                 <div className="p-8">
-                    <h3 className="font-bold text-slate-700 mb-6 flex items-center">
-                        <span className="bg-indigo-100 text-indigo-700 p-2 rounded-lg mr-3">👥</span> 
-                        Tanımlı Kullanıcılar
-                    </h3>
-                    
-                    {loadingUsers ? (
-                        <div className="text-center py-10 text-gray-400">Kullanıcılar yükleniyor...</div>
-                    ) : tenantUsers.length === 0 ? (
-                        <div className="text-center py-10 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-                            <p className="text-slate-400 font-medium">Bu şirkete henüz bir yönetici veya personel atanmamış.</p>
-                            <button onClick={() => setShowUserModal(true)} className="mt-4 text-indigo-600 font-bold hover:underline">İlk Yöneticiyi Ekle</button>
-                        </div>
-                    ) : (
+                    {detailTab === 'users' ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {tenantUsers.map(u => (
-                                <div key={u.id} className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition group">
+                            {loadingUsers ? <div className="col-span-full py-10 text-center text-slate-400">Yükleniyor...</div> : tenantUsers.map(u => (
+                                <div key={u.id} className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition">
                                     <div className="flex justify-between items-start mb-4">
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold ${u.role === UserRole.ADMIN ? 'bg-purple-100 text-purple-600' : 'bg-blue-50 text-blue-600'}`}>
-                                            {u.name[0]}
-                                        </div>
-                                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 bg-gray-50 px-2 py-1 rounded">{u.role}</span>
+                                        <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl font-bold">{u.name[0]}</div>
+                                        <select 
+                                            value={u.role} 
+                                            onChange={(e) => handleUpdateRole(u, e.target.value as UserRole)}
+                                            className="text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-600 border-none rounded-lg px-2 py-1 outline-none"
+                                        >
+                                            <option value={UserRole.ADMIN}>YÖNETİCİ</option>
+                                            <option value={UserRole.PURCHASE}>SATIN ALMA</option>
+                                            <option value={UserRole.SALES}>SATIŞ</option>
+                                        </select>
                                     </div>
                                     <h4 className="font-bold text-lg text-gray-800">{u.name}</h4>
-                                    <p className="text-sm text-gray-500 mb-4">Kullanıcı ID: {u.id.substring(0,8)}...</p>
-                                    
-                                    <button 
-                                        onClick={() => handleImpersonateClick(u)}
-                                        className="w-full py-3 rounded-xl border-2 border-slate-100 text-slate-600 font-bold text-xs uppercase tracking-wider hover:bg-slate-800 hover:text-white hover:border-slate-800 transition flex items-center justify-center"
-                                    >
-                                        <span className="mr-2">👁️</span> Yönetici Olarak Gir
-                                    </button>
+                                    <div className="flex space-x-2 mt-6">
+                                        <button onClick={() => onImpersonate(u)} className="flex-1 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition">Gözlemle</button>
+                                        <button onClick={() => handleDeleteUser(u)} className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition" title="Kullanıcıyı Sil">🗑️</button>
+                                    </div>
                                 </div>
                             ))}
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            <div className="flex flex-wrap gap-4 items-end bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                                <div className="flex-1 min-w-[200px]">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Başlangıç Tarihi</label>
+                                    <input type="date" value={logFilter.start} onChange={e => setLogFilter({...logFilter, start: e.target.value})} className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500" />
+                                </div>
+                                <div className="flex-1 min-w-[200px]">
+                                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Bitiş Tarihi</label>
+                                    <input type="date" value={logFilter.end} onChange={e => setLogFilter({...logFilter, end: e.target.value})} className="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500" />
+                                </div>
+                                <button onClick={() => setLogFilter({start: '', end: ''})} className="px-6 py-3 bg-white text-slate-500 font-bold rounded-xl border border-slate-200 hover:bg-slate-100 transition">Sıfırla</button>
+                            </div>
+                            
+                            <div className="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400 border-b">
+                                        <tr>
+                                            <th className="py-4 px-6">Tarih / Saat</th>
+                                            <th className="py-4 px-6">Personel</th>
+                                            <th className="py-4 px-6">Eylem</th>
+                                            <th className="py-4 px-6">Detaylar</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {loadingLogs ? <tr><td colSpan={4} className="py-10 text-center">Yükleniyor...</td></tr> : auditLogs.map(log => (
+                                            <tr key={log.id} className="hover:bg-indigo-50/20 transition">
+                                                <td className="py-4 px-6 text-slate-400 font-mono text-[11px]">
+                                                    {new Date(log.created_at).toLocaleString('tr-TR')}
+                                                </td>
+                                                <td className="py-4 px-6 font-bold text-slate-700">{log.user_name}</td>
+                                                <td className="py-4 px-6">
+                                                    <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-[10px] font-black uppercase tracking-tighter">{log.action}</span>
+                                                </td>
+                                                <td className="py-4 px-6 text-slate-500 italic text-xs">{log.details}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* ADD USER MODAL */}
             {showUserModal && (
                 <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in duration-300">
                         <form onSubmit={handleAddUser}>
-                            <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                                <h3 className="font-bold text-gray-800">Personel Tanımla: {selectedTenant.name}</h3>
-                                <button type="button" onClick={() => setShowUserModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                            <div className="p-6 border-b bg-gray-50 flex justify-between">
+                                <h3 className="font-bold text-gray-800">Personel Ekle</h3>
+                                <button type="button" onClick={() => setShowUserModal(false)}>✕</button>
                             </div>
                             <div className="p-8 space-y-4">
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ad Soyad</label>
-                                    <input required className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Ad Soyad" value={newUserName} onChange={e => setNewUserName(e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">E-Posta (Giriş İçin)</label>
-                                    <input required type="email" className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="email@sirket.com" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Şifre</label>
-                                    <input required type="text" className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="******" value={newUserPass} onChange={e => setNewUserPass(e.target.value)} />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Yetki Seviyesi</label>
-                                    <select className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" value={newUserRole} onChange={e => setNewUserRole(e.target.value as UserRole)}>
-                                        <option value={UserRole.ADMIN}>Şirket Yöneticisi</option>
-                                        <option value={UserRole.PURCHASE}>Satın Alma Personeli</option>
-                                        <option value={UserRole.SALES}>Satış Personeli</option>
-                                    </select>
-                                </div>
+                                <input required className="w-full p-3 rounded-xl border" placeholder="Ad Soyad" value={newUserName} onChange={e => setNewUserName(e.target.value)} />
+                                <input required type="email" className="w-full p-3 rounded-xl border" placeholder="e-posta@firma.com" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} />
+                                <input required className="w-full p-3 rounded-xl border" placeholder="Şifre" value={newUserPass} onChange={e => setNewUserPass(e.target.value)} />
+                                <select className="w-full p-3 rounded-xl border" value={newUserRole} onChange={e => setNewUserRole(e.target.value as UserRole)}>
+                                    <option value={UserRole.ADMIN}>Yönetici</option>
+                                    <option value={UserRole.PURCHASE}>Satın Alma</option>
+                                    <option value={UserRole.SALES}>Satış</option>
+                                </select>
                             </div>
-                            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end space-x-3">
-                                <button type="button" onClick={() => setShowUserModal(false)} className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-700">İptal</button>
-                                <button disabled={creating} type="submit" className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition disabled:bg-gray-400">
-                                    {creating ? 'Ekleniyor...' : 'Kullanıcıyı Kaydet'}
-                                </button>
+                            <div className="p-6 bg-gray-50 border-t flex justify-end space-x-3">
+                                <button type="button" onClick={() => setShowUserModal(false)} className="text-slate-400 font-bold">İptal</button>
+                                <button disabled={creating} type="submit" className="px-8 py-3 bg-indigo-600 text-white font-black rounded-xl shadow-lg shadow-indigo-500/20">{creating ? 'Kaydediliyor...' : 'Personeli Kaydet'}</button>
                             </div>
                         </form>
                     </div>
@@ -236,83 +252,49 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
       );
   }
 
-  // COMPANY LIST VIEW
   return (
     <div className="space-y-8 animate-in fade-in zoom-in duration-300">
-      <div className="flex justify-between items-center bg-indigo-900 p-8 rounded-3xl text-white shadow-2xl relative overflow-hidden">
+      <div className="bg-indigo-900 p-8 rounded-[2.5rem] text-white shadow-2xl flex justify-between items-center overflow-hidden relative">
         <div className="relative z-10">
-          <h2 className="text-3xl font-black tracking-tight mb-2">DB Tech Yönetim Paneli</h2>
-          <p className="text-indigo-200 text-sm max-w-xl">Müşteri firmaları (tenant) buradan yönetebilirsiniz. Kullanıcı eklemek için firma detayına giriniz.</p>
+          <h2 className="text-4xl font-black tracking-tight mb-2">DB Tech SaaS Panel</h2>
+          <p className="text-indigo-200 text-sm">Platform üzerindeki tüm şirketleri ve kullanıcı operasyonlarını yönetin.</p>
         </div>
-        <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-indigo-600 to-transparent opacity-50"></div>
-        <button 
-            onClick={() => setShowCompanyModal(true)}
-            className="relative z-10 bg-white text-indigo-900 px-6 py-3 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-indigo-50 transition shadow-xl"
-        >
-            + Yeni Firma Ekle
-        </button>
+        <button onClick={() => setShowCompanyModal(true)} className="relative z-10 bg-white text-indigo-900 px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl hover:scale-105 transition">+ ŞİRKET EKLE</button>
+        <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-indigo-500/20 to-transparent"></div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {loading ? (
-              <div className="col-span-full text-center py-20 text-gray-400">Veriler Yükleniyor...</div>
-          ) : tenants.length === 0 ? (
-              <div className="col-span-full text-center py-20 bg-white rounded-3xl border border-dashed border-gray-300 text-gray-500">
-                  Henüz hiç firma tanımlanmamış.
-              </div>
-          ) : (
-              tenants.map(t => (
-                  <div key={t.id} onClick={() => setSelectedTenant(t)} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-200 cursor-pointer transition group relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
-                          <span className="text-6xl">🏢</span>
-                      </div>
-                      <div className="relative z-10">
-                          <div className="flex justify-between items-start">
-                              <h3 className="text-xl font-black text-slate-800 mb-1 group-hover:text-indigo-600 transition">{t.name}</h3>
-                              <button 
-                                onClick={(e) => handleDeleteCompany(e, t)}
-                                className="z-20 w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition shadow-sm"
-                                title="Şirketi Sil"
-                              >
-                                  🗑️
-                              </button>
-                          </div>
-                          <p className="text-xs font-mono text-slate-400 mb-4">{t.id}</p>
-                          <div className="flex items-center space-x-2">
-                              <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase">{t.status}</span>
-                              <span className="text-[10px] text-gray-400">{new Date(t.createdAt).toLocaleDateString('tr-TR')}</span>
-                          </div>
-                          <div className="mt-6 pt-4 border-t border-gray-50 flex items-center text-indigo-600 font-bold text-xs uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-2 group-hover:translate-y-0">
-                              Yönetimi Aç →
-                          </div>
-                      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {loading ? <div className="col-span-full py-20 text-center text-gray-400">Veriler Yükleniyor...</div> : tenants.map(t => (
+              <div key={t.id} onClick={() => setSelectedTenant(t)} className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-2xl hover:border-indigo-200 cursor-pointer transition group relative overflow-hidden">
+                  <div className="flex justify-between items-start mb-6">
+                      <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-2xl group-hover:scale-110 transition duration-500">🏢</div>
+                      <button onClick={(e) => handleDeleteCompany(e, t)} className="w-10 h-10 rounded-xl bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition shadow-sm">🗑️</button>
                   </div>
-              ))
-          )}
+                  <h3 className="text-2xl font-black text-slate-800 mb-1 leading-tight group-hover:text-indigo-600 transition">{t.name}</h3>
+                  <p className="text-[10px] font-mono text-slate-400 mb-6 uppercase tracking-widest">TENANT: {t.id}</p>
+                  <div className="flex items-center justify-between mt-auto pt-6 border-t border-gray-50">
+                      <span className="px-3 py-1 bg-green-50 text-green-700 rounded-lg text-[10px] font-black uppercase tracking-widest">{t.status}</span>
+                      <span className="text-[10px] font-bold text-slate-400">{new Date(t.createdAt).toLocaleDateString('tr-TR')}</span>
+                  </div>
+              </div>
+          ))}
       </div>
 
       {showCompanyModal && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in duration-300">
                 <form onSubmit={handleCreateCompany}>
-                    <div className="p-6 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                        <h3 className="font-bold text-gray-800">Yeni Firma Tanımla</h3>
-                        <button type="button" onClick={() => setShowCompanyModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                    <div className="p-6 border-b bg-gray-50 flex justify-between">
+                        <h3 className="font-bold text-gray-800">Yeni Firma Alanı</h3>
+                        <button type="button" onClick={() => setShowCompanyModal(false)}>✕</button>
                     </div>
                     <div className="p-8 space-y-4">
-                        <div className="bg-blue-50 text-blue-800 p-4 rounded-xl text-xs">
-                            Bu işlem sadece firma alanını oluşturur. Firma oluşturulduktan sonra detayına girerek yönetici kullanıcı ekleyebilirsiniz.
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Firma Ünvanı</label>
-                            <input required className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Örn: Mervolt Elektrik Ltd." value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} />
-                        </div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Şirket Ünvanı</label>
+                        <input required className="w-full p-4 rounded-2xl border border-gray-200 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Örn: Voltech Enerji Ltd." value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} />
                     </div>
-                    <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end space-x-3">
-                        <button type="button" onClick={() => setShowCompanyModal(false)} className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-700">İptal</button>
-                        <button disabled={creating} type="submit" className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition disabled:bg-gray-400">
-                            {creating ? 'Oluşturuluyor...' : 'Firma Alanını Aç'}
-                        </button>
+                    <div className="p-6 bg-gray-50 border-t flex justify-end space-x-3">
+                        <button type="button" onClick={() => setShowCompanyModal(false)} className="text-slate-400 font-bold">İptal</button>
+                        <button disabled={creating} type="submit" className="px-8 py-3 bg-indigo-600 text-white font-black rounded-xl shadow-lg shadow-indigo-500/20">{creating ? 'Oluşturuluyor...' : 'ŞİRKETİ OLUŞTUR'}</button>
                     </div>
                 </form>
             </div>
