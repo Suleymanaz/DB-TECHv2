@@ -46,6 +46,7 @@ export interface TransactionItem {
   productName: string;
   quantity: number;
   unitPrice: number;
+  discount?: number; // İskonto yüzdesi (0-100)
   isLabor?: boolean;
 }
 
@@ -74,8 +75,20 @@ export interface Transaction {
   type: TransactionType;
   contactId: string;
   contactName: string;
+  subtotal: number;
+  totalDiscount: number;
   totalAmount: number;
   date: string;
   user: string;
   isReturn?: boolean;
+}
+
+export interface AuditLog {
+  id: string;
+  company_id: string;
+  user_id: string;
+  user_name: string;
+  action: string;
+  details: string;
+  created_at: string;
 }
