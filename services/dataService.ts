@@ -1,18 +1,16 @@
+
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { Product, Contact, Transaction, User, UserRole, TransactionItem, TransactionType, Tenant, AuditLog, ContactType } from '../types';
 
 class DataService {
   private useLive = isSupabaseConfigured();
 
-  // Log Kaydetme Metodu
   async logAction(companyId: string, action: string, details: string = '') {
     if (!this.useLive) return;
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
       const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
-
       await supabase.from('audit_logs').insert({
         company_id: companyId,
         user_id: user.id,
@@ -20,40 +18,31 @@ class DataService {
         action,
         details
       });
-    } catch (e) {
-      console.error("Log hatası:", e);
-    }
+    } catch (e) { console.error("Log hatası:", e); }
   }
 
-  // Logları Getirme
   async getAuditLogs(companyId: string, startDate?: string, endDate?: string): Promise<AuditLog[]> {
     if (!this.useLive) return [];
     let query = supabase.from('audit_logs').select('*').eq('company_id', companyId).order('created_at', { ascending: false });
-    
     if (startDate) query = query.gte('created_at', startDate);
     if (endDate) query = query.lte('created_at', endDate);
-
     const { data, error } = await query;
     if (error) return [];
     return data as AuditLog[];
   }
 
-  // Kullanıcı Rolü Güncelleme
   async updateUserRole(userId: string, newRole: UserRole, companyId: string): Promise<{ success: boolean, error: string | null }> {
     if (!this.useLive) return { success: false, error: "Canlı bağlantı yok" };
     const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
     if (error) return { success: false, error: error.message };
-    
     await this.logAction(companyId, "Kullanıcı Rolü Değiştirildi", `UserID: ${userId}, Yeni Rol: ${newRole}`);
     return { success: true, error: null };
   }
 
-  // Kullanıcı Silme (Profil Silme)
   async deleteUser(userId: string, companyId: string): Promise<{ success: boolean, error: string | null }> {
     if (!this.useLive) return { success: false, error: "Canlı bağlantı yok" };
     const { error } = await supabase.from('profiles').delete().eq('id', userId);
     if (error) return { success: false, error: error.message };
-    
     await this.logAction(companyId, "Kullanıcı Silindi", `UserID: ${userId}`);
     return { success: true, error: null };
   }
@@ -70,9 +59,7 @@ class DataService {
           return { success: false, message: 'Veri Erişim Hatası', details: tableError.message };
       }
       return { success: true, message: 'Bağlantı Başarılı!', details: 'Veritabanı hazır.' };
-    } catch (err: any) {
-      return { success: false, message: 'Bağlantı Hatası', details: err.message || 'Bilinmeyen hata' };
-    }
+    } catch (err: any) { return { success: false, message: 'Bağlantı Hatası', details: err.message || 'Bilinmeyen hata' }; }
   }
 
   async login(username: string, password: string): Promise<{ user: User | null, error: string | null }> {
@@ -158,7 +145,6 @@ class DataService {
       if (!error && prod) await this.logAction(prod.company_id, "Stok Kartı Silindi", prod.name);
   }
 
-  // Corrected missing ContactType import on line 187 usage (reported as line 166)
   async getContacts(companyId?: string): Promise<Contact[]> {
       if (!this.useLive || !companyId) return [];
       const { data, error } = await supabase.from('contacts').select('*').eq('company_id', companyId);
@@ -183,12 +169,37 @@ class DataService {
       if (!this.useLive || !companyId) return [];
       const { data, error } = await supabase.from('transactions').select('*').eq('company_id', companyId).order('date', { ascending: false });
       if (error) return [];
-      return data.map((t: any) => ({ id: t.id, items: typeof t.items === 'string' ? JSON.parse(t.items) : t.items, type: t.type as TransactionType, contactId: t.contact_id, contactName: t.contact_name, totalAmount: Number(t.total_amount), date: t.date, user: t.user_name, isReturn: t.is_return }));
+      return data.map((t: any) => ({ 
+        id: t.id, 
+        items: typeof t.items === 'string' ? JSON.parse(t.items) : t.items, 
+        type: t.type as TransactionType, 
+        contactId: t.contact_id, 
+        contactName: t.contact_name, 
+        subtotal: Number(t.subtotal || 0),
+        totalDiscount: Number(t.total_discount || 0),
+        totalAmount: Number(t.total_amount), 
+        date: t.date, 
+        user: t.user_name, 
+        isReturn: t.is_return 
+      }));
   }
 
   async saveTransaction(tx: Transaction, companyId?: string): Promise<void> {
       if (!this.useLive || !companyId) return;
-      const { error } = await supabase.from('transactions').insert({ id: tx.id, company_id: companyId, items: tx.items, type: tx.type, contact_id: tx.contactId, contact_name: tx.contactName, total_amount: tx.totalAmount, date: tx.date, user_name: tx.user, is_return: tx.isReturn });
+      const { error } = await supabase.from('transactions').insert({ 
+        id: tx.id, 
+        company_id: companyId, 
+        items: tx.items, 
+        type: tx.type, 
+        contact_id: tx.contactId, 
+        contact_name: tx.contactName, 
+        subtotal: tx.subtotal,
+        total_discount: tx.totalDiscount,
+        total_amount: tx.totalAmount, 
+        date: tx.date, 
+        user_name: tx.user, 
+        is_return: tx.isReturn 
+      });
       if (!error) {
           await this.logAction(companyId, tx.isReturn ? "İade İşlemi" : (tx.type === TransactionType.IN ? "Mal Alımı" : "Satış İşlemi"), `Tutar: ${tx.totalAmount} TL`);
           for (const item of tx.items) {
