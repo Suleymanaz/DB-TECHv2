@@ -33,7 +33,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions }) => {
                 <th className="py-4 px-6">Cari (Müşteri/Tedarikçi)</th>
                 <th className="py-4 px-6">İşlem İçeriği</th>
                 <th className="py-4 px-6">Tip</th>
-                <th className="py-4 px-6">Toplam Tutar</th>
+                <th className="py-4 px-6 text-right">Mali Detay</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -49,12 +49,19 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions }) => {
                   </td>
                   <td className="py-4 px-6">
                     <div className="space-y-1">
-                      {tx.items.map((item, idx) => (
-                        <div key={idx} className="text-xs flex justify-between space-x-4 border-b border-gray-50 pb-1">
-                          <span className="text-gray-600">{item.productName} x{item.quantity}</span>
-                          <span className="font-bold">{formatCurrency(item.unitPrice * item.quantity)}</span>
-                        </div>
-                      ))}
+                      {tx.items.map((item, idx) => {
+                        const itemSubtotal = item.unitPrice * item.quantity;
+                        const itemDiscounted = item.discount ? itemSubtotal * (1 - item.discount / 100) : itemSubtotal;
+                        return (
+                          <div key={idx} className="text-xs flex flex-col border-b border-gray-50 pb-1 mb-1">
+                            <div className="flex justify-between space-x-4">
+                                <span className="text-gray-600 font-medium">{item.productName} x{item.quantity}</span>
+                                <span className="font-bold text-gray-800">{formatCurrency(itemDiscounted)}</span>
+                            </div>
+                            {item.discount && <span className="text-[9px] text-orange-500 font-bold uppercase">% {item.discount} İskonto</span>}
+                          </div>
+                        );
+                      })}
                     </div>
                   </td>
                   <td className="py-4 px-6">
@@ -64,8 +71,13 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions }) => {
                       {tx.isReturn ? 'İADE (' + tx.type + ')' : tx.type}
                     </span>
                   </td>
-                  <td className="py-4 px-6 font-black text-gray-800">
-                    {formatCurrency(tx.totalAmount)}
+                  <td className="py-4 px-6 text-right">
+                    {tx.totalDiscount > 0 && (
+                        <p className="text-[10px] text-orange-500 font-bold">-{formatCurrency(tx.totalDiscount)} İskonto</p>
+                    )}
+                    <p className="font-black text-gray-800 text-lg leading-tight">
+                        {formatCurrency(tx.totalAmount)}
+                    </p>
                   </td>
                 </tr>
               ))}
