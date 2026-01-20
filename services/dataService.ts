@@ -39,11 +39,15 @@ class DataService {
     return { success: true, error: null };
   }
 
+  // KALICI SİLME: RPC üzerinden Auth dahil siler
   async deleteUser(userId: string, companyId: string): Promise<{ success: boolean, error: string | null }> {
     if (!this.useLive) return { success: false, error: "Canlı bağlantı yok" };
-    const { error } = await supabase.from('profiles').delete().eq('id', userId);
+    
+    // SQL'deki delete_user_hard fonksiyonunu çağırır (Auth silmesi için)
+    const { error } = await supabase.rpc('delete_user_hard', { target_user_id: userId });
+    
     if (error) return { success: false, error: error.message };
-    await this.logAction(companyId, "Kullanıcı Silindi", `UserID: ${userId}`);
+    await this.logAction(companyId, "Kullanıcı Kalıcı Olarak Silindi (Auth Dahil)", `UserID: ${userId}`);
     return { success: true, error: null };
   }
 
@@ -69,11 +73,14 @@ class DataService {
         if (error) return { user: null, error: error.message };
         if (data.user) {
           let { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
+          
+          // Süper Admin kontrolü (odabasisuleyman2015@gmail.com)
           if (!profile && data.user.email === 'odabasisuleyman2015@gmail.com') {
               const adminProfile = { id: data.user.id, full_name: 'Süleyman Odabaşı', role: 'DB_TECH_ADMIN', company_id: 'GLOBAL_HEAD', company_name: 'DB Tech Global' };
               await supabase.from('profiles').upsert(adminProfile);
               profile = adminProfile;
           }
+          
           if (profile) {
               await this.logAction(profile.company_id, "Sisteme Giriş Yapıldı");
               return { user: { id: data.user.id, name: profile.full_name, username: data.user.email || '', role: profile.role as UserRole, companyId: profile.company_id }, error: null };
@@ -106,11 +113,15 @@ class DataService {
     return { success: true, error: null };
   }
 
+  // KALICI SİLME: Şirketi ve TÜM bağlı verileri/kullanıcıları siler
   async deleteTenant(tenantId: string): Promise<{ success: boolean, error: string | null }> {
     if (!this.useLive) return { success: false, error: "Bağlantı yok" };
-    const { error } = await supabase.from('tenants').delete().eq('id', tenantId);
+    
+    // SQL'deki delete_tenant_hard fonksiyonunu çağırır
+    const { error } = await supabase.rpc('delete_tenant_hard', { target_tenant_id: tenantId });
+    
     if (error) return { success: false, error: error.message };
-    await this.logAction('GLOBAL_HEAD', "Şirket Silindi", tenantId);
+    await this.logAction('GLOBAL_HEAD', "Şirket ve Bağlı Tüm Veriler Silindi", tenantId);
     return { success: true, error: null };
   }
 
