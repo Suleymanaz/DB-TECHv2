@@ -83,11 +83,11 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
 
   const handleDeleteUser = async (user: User) => {
     if (!selectedTenant) return;
-    if (!window.confirm(`${user.name} kullanıcısını sistemden silmek üzeresiniz. Onaylıyor musunuz?`)) return;
+    if (!window.confirm(`${user.name} kullanıcısını sistemden KALICI olarak silmek üzeresiniz (Auth kayıtları dahil). Bu işlem geri alınamaz. Onaylıyor musunuz?`)) return;
     
     const { success, error } = await dataService.deleteUser(user.id, selectedTenant.id);
     if (success) {
-        alert('Kullanıcı silindi.');
+        alert('Kullanıcı kalıcı olarak silindi.');
         loadTenantUsers(selectedTenant.id);
     } else alert('Hata: ' + error);
   };
@@ -106,10 +106,14 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
 
   const handleDeleteCompany = async (e: React.MouseEvent, tenant: Tenant) => {
     e.stopPropagation();
-    if (!window.confirm(`${tenant.name} silinecek. Onaylıyor musunuz?`)) return;
+    if (!window.confirm(`DİKKAT: "${tenant.name}" şirketini, tüm stoklarını, cari kayıtlarını ve TÜM PERSONELLERİNİN HESAPLARINI kalıcı olarak silmek üzeresiniz. Bu işlem asla geri alınamaz. Devam etmek istiyor musunuz?`)) return;
+    
     setLoading(true);
     const { success, error } = await dataService.deleteTenant(tenant.id);
-    if (success) loadTenants();
+    if (success) {
+        alert('Şirket ve tüm bağlı veriler başarıyla temizlendi.');
+        loadTenants();
+    }
     else { alert('Hata: ' + error); setLoading(false); }
   };
 
@@ -121,7 +125,7 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
       if (success) {
           setShowUserModal(false);
           loadTenantUsers(selectedTenant.id);
-          alert('Kullanıcı eklendi. Oturum güvenliği için sayfayı yenilemeniz önerilir.');
+          alert('Kullanıcı başarıyla oluşturuldu.');
       } else alert('Hata: ' + error);
       setCreating(false);
   };
