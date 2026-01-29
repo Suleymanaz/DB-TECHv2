@@ -15,7 +15,7 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
   const [selectedContactId, setSelectedContactId] = useState('');
   const [qty, setQty] = useState(1);
   const [discount, setDiscount] = useState(0); 
-  const [laborName, setLaborName] = useState('Elektrik İşçiliği');
+  const [laborName, setLaborName] = useState('Hizmet Bedeli');
   const [laborPrice, setLaborPrice] = useState(0);
 
   useEffect(() => {
@@ -24,10 +24,10 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
       if (!isValid) {
         const perakende = contacts.find(c => c.name.toUpperCase().includes('PERAKENDE'));
         if (perakende) setSelectedContactId(perakende.id);
-        else setSelectedContactId(contacts[0].id);
+        else setSelectedContactId(contacts[0]?.id || '');
       }
     }
-  }, [contacts, selectedContactId]);
+  }, [contacts]);
 
   const product = products.find(p => p.id === selectedProductId);
 
@@ -59,7 +59,7 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
   };
 
   const addLaborToCart = () => {
-    if (laborPrice <= 0) return alert('Lütfen geçerli bir işçilik tutarı girin.');
+    if (laborPrice <= 0) return alert('Lütfen geçerli bir tutar girin.');
     setCart([...cart, {
       productName: laborName,
       quantity: 1,
@@ -67,7 +67,7 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
       isLabor: true
     }]);
     setLaborPrice(0);
-    setLaborName('Elektrik İşçiliği');
+    setLaborName('Hizmet Bedeli');
   };
 
   const removeFromCart = (index: number) => {
@@ -86,8 +86,6 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
   const totalAmount = cart.reduce((sum, item) => sum + calculateItemTotal(item), 0);
   const totalDiscount = subtotal - totalAmount;
 
-  // KDV HESAPLARI (KDV DAHİL FİYATTAN GERİYE DOĞRU)
-  // %20 KDV varsayımıyla (1.20)
   const totalExcludingVAT = totalAmount / 1.2;
   const vatAmount = totalAmount - totalExcludingVAT;
 
@@ -116,49 +114,71 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
       <div className="lg:col-span-2 space-y-6">
-        {/* Giriş Alanları */}
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
           <h3 className="text-lg font-bold mb-4 flex items-center"><span className="mr-2 text-blue-500">📦</span> Ürün Seçimi</h3>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Malzeme</label>
-              <select className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value={selectedProductId} onChange={e => { setSelectedProductId(e.target.value); setDiscount(0); }}>
+              <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Malzeme / Ürün</label>
+              <select 
+                className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer" 
+                value={selectedProductId} 
+                onChange={e => { setSelectedProductId(e.target.value); setDiscount(0); }}
+              >
                 <option value="">Seçiniz...</option>
                 {products.map(p => <option key={p.id} value={p.id} disabled={p.stock <= 0}>{p.name} ({p.stock} {p.unit})</option>)}
               </select>
             </div>
             <div>
               <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Miktar</label>
-              <input type="number" className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold" value={qty} onChange={e => setQty(Number(e.target.value))} min="1" />
+              <input 
+                type="number" 
+                className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" 
+                value={qty === 0 ? '' : qty} 
+                placeholder="1"
+                onChange={e => setQty(e.target.value === '' ? 0 : parseFloat(e.target.value))} 
+                min="1" 
+              />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">İskonto (%)</label>
-              <input type="number" className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold" value={discount} onChange={e => setDiscount(Number(e.target.value))} min="0" max="100" />
+              <input 
+                type="number" 
+                className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" 
+                value={discount === 0 ? '' : discount} 
+                placeholder="0"
+                onChange={e => setDiscount(e.target.value === '' ? 0 : parseFloat(e.target.value))} 
+                min="0" max="100" 
+              />
             </div>
             <div className="flex items-end">
-              <button onClick={addToCart} className="w-full bg-blue-600 text-white font-bold h-[46px] rounded-xl hover:bg-blue-700 transition">Ekle</button>
+              <button onClick={addToCart} className="w-full bg-blue-600 text-white font-bold h-[46px] rounded-xl hover:bg-blue-700 transition active:scale-95 shadow-lg shadow-blue-500/20">Ekle</button>
             </div>
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-bold mb-4 flex items-center"><span className="mr-2 text-indigo-500">🛠️</span> İşçilik</h3>
+          <h3 className="text-lg font-bold mb-4 flex items-center"><span className="mr-2 text-indigo-500">🛠️</span> Hizmet / İşçilik</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="md:col-span-2">
               <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Açıklama</label>
-              <input type="text" className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm" value={laborName} onChange={e => setLaborName(e.target.value)} />
+              <input type="text" className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm outline-none focus:ring-2 focus:ring-indigo-500" value={laborName} onChange={e => setLaborName(e.target.value)} />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Bedel (KDV Dahil)</label>
-              <input type="number" className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold" value={laborPrice || ''} onChange={e => setLaborPrice(Number(e.target.value))} />
+              <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Tutar (KDV Dahil)</label>
+              <input 
+                type="number" 
+                className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500" 
+                value={laborPrice === 0 ? '' : laborPrice} 
+                placeholder="0.00"
+                onChange={e => setLaborPrice(e.target.value === '' ? 0 : parseFloat(e.target.value))} 
+              />
             </div>
             <div className="flex items-end">
-              <button onClick={addLaborToCart} className="w-full bg-indigo-600 text-white font-bold h-[46px] rounded-xl hover:bg-indigo-700 transition">Ekle</button>
+              <button onClick={addLaborToCart} className="w-full bg-indigo-600 text-white font-bold h-[46px] rounded-xl hover:bg-indigo-700 transition active:scale-95 shadow-lg shadow-indigo-500/20">Ekle</button>
             </div>
           </div>
         </div>
 
-        {/* Sepet */}
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden min-h-[400px] flex flex-col">
           <div className="p-6 border-b border-gray-50 bg-gray-50/30"><h3 className="text-lg font-bold">Satış Sepeti</h3></div>
           <div className="flex-1 overflow-y-auto p-6 space-y-3">
@@ -166,17 +186,17 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
               <div className="flex flex-col items-center justify-center h-full text-gray-300 italic text-sm">Sepetiniz boş.</div>
             ) : (
               cart.map((item, i) => (
-                <div key={i} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl">
+                <div key={i} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 transition-colors">
                   <div className="flex-1">
                     <p className="font-bold text-gray-800 text-sm">{item.productName}</p>
-                    <p className="text-[10px] text-gray-400">{item.isLabor ? 'Hizmet' : 'Ürün'}</p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{item.isLabor ? 'Hizmet' : 'Ürün'}</p>
                   </div>
                   <div className="text-right flex items-center space-x-6">
                     <div>
                       <p className="text-[10px] text-gray-400">{item.quantity} x {formatCurrency(item.unitPrice)}</p>
-                      <p className="text-sm font-black">{formatCurrency(calculateItemTotal(item))}</p>
+                      <p className="text-sm font-black text-slate-800">{formatCurrency(calculateItemTotal(item))}</p>
                     </div>
-                    <button onClick={() => removeFromCart(i)} className="text-red-400 hover:text-red-600">✕</button>
+                    <button onClick={() => removeFromCart(i)} className="text-red-400 hover:text-red-600 p-2">✕</button>
                   </div>
                 </div>
               ))
@@ -188,13 +208,17 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
       <div className="space-y-6">
         <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-2xl flex flex-col min-h-[600px]">
           <div className="flex-1">
-            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-10 border-b border-slate-800 pb-4">ÖDEME VE CARİ</h3>
+            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-10 border-b border-slate-800 pb-4">ÖDEME VE MÜŞTERİ</h3>
             
             <div className="mb-10">
               <label className="block text-[10px] text-slate-500 mb-3 font-black uppercase">Müşteri Seçimi</label>
-              <select className="w-full bg-slate-800 border-slate-700 rounded-2xl p-4 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none" value={selectedContactId} onChange={e => setSelectedContactId(e.target.value)}>
+              <select 
+                className="w-full bg-slate-800 border-slate-700 rounded-2xl p-4 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer" 
+                value={selectedContactId} 
+                onChange={e => setSelectedContactId(e.target.value)}
+              >
                 {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                {contacts.length === 0 && <option value="">Müşteri Yok!</option>}
+                {contacts.length === 0 && <option value="">Müşteri Tanımlanmamış!</option>}
               </select>
             </div>
 
