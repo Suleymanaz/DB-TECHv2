@@ -197,7 +197,7 @@ const ProductModal: React.FC<{ product: Product | null; onClose: () => void; onS
     onClose();
   };
 
-  // Helper for smart number inputs
+  // Akıllı sayı değişikliği yönetimi
   const handleNumChange = (field: string, val: string, nestedField?: string) => {
     const num = val === '' ? 0 : parseFloat(val);
     if (nestedField) {
@@ -225,7 +225,11 @@ const ProductModal: React.FC<{ product: Product | null; onClose: () => void; onS
                 <div><label className="text-[10px] text-gray-400 font-bold uppercase">SKU</label><input className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={formData.sku} onChange={e => setFormData({...formData, sku: e.target.value})} required /></div>
                 <div>
                   <label className="text-[10px] text-gray-400 font-bold uppercase">Birim</label>
-                  <select className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer" value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})}>
+                  <select 
+                    className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+                    value={formData.unit}
+                    onChange={e => setFormData({...formData, unit: e.target.value})}
+                  >
                     {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </div>
@@ -233,7 +237,11 @@ const ProductModal: React.FC<{ product: Product | null; onClose: () => void; onS
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] text-gray-400 font-bold uppercase">Kategori</label>
-                  <select className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
+                  <select 
+                    className="w-full p-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer"
+                    value={formData.category}
+                    onChange={e => setFormData({...formData, category: e.target.value})}
+                  >
                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
