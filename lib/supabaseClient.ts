@@ -1,9 +1,19 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// .env dosyasından bilgileri okuyoruz ve boşlukları temizliyoruz (trim)
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
-const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+// Environment variables are accessed safely to prevent "undefined" errors
+// We check both Vite's import.meta.env and Vercel/Node's process.env
+const getEnvVar = (key: string): string => {
+  try {
+    // @ts-ignore - handled safely
+    return (import.meta.env?.[key] || process.env?.[key] || '').trim();
+  } catch (e) {
+    return '';
+  }
+};
+
+const SUPABASE_URL = getEnvVar('VITE_SUPABASE_URL');
+const SUPABASE_ANON_KEY = getEnvVar('VITE_SUPABASE_ANON_KEY');
 
 // Geçerli bir URL yapısı değilse uyar
 if (SUPABASE_URL && !SUPABASE_URL.startsWith('http')) {
