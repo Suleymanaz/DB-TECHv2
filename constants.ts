@@ -2,13 +2,28 @@
 import { Product, Contact, ContactType, User, UserRole } from './types';
 
 export const CATEGORIES = [
-  'Aydınlatma',
-  'Kablo',
-  'Şalt Grubu',
-  'Anahtar & Priz',
-  'Tesisat',
-  'İşçilik',
+  'Genel Ürünler',
+  'Hammadde',
+  'Yarı Mamul',
+  'Sarf Malzeme',
+  'Ticari Mal',
+  'Hizmet / İşçilik',
+  'Demirbaş',
   'Diğer'
+];
+
+export const UNITS = [
+  'Adet',
+  'Metre',
+  'Kg',
+  'Gram',
+  'Paket',
+  'Litre',
+  'Rulo',
+  'Takım',
+  'Koli',
+  'Çuval',
+  'Palet'
 ];
 
 export const SYSTEM_USERS: User[] = [
@@ -37,33 +52,17 @@ export const INITIAL_CONTACTS: Contact[] = [
 export const INITIAL_PRODUCTS: Product[] = [
   {
     id: '1',
-    name: 'NYM Kablo 3x2.5mm 100m',
-    sku: 'KAB-001-NYM',
-    category: 'Kablo',
-    unit: 'Metre',
-    stock: 450,
-    criticalThreshold: 200,
-    pricing: {
-      purchasePrice: 15.50,
-      vatRate: 0.20,
-      exchangeRate: 31.20,
-      otherExpenses: 250.00
-    },
-    sellingPrice: 28.50
-  },
-  {
-    id: '2',
-    name: 'LED Panel 60x60 54W',
-    sku: 'AYD-LED-6060',
-    category: 'Aydınlatma',
+    name: 'Örnek Ürün A',
+    sku: 'SKU-001',
+    category: 'Genel Ürünler',
     unit: 'Adet',
-    stock: 12,
-    criticalThreshold: 25,
+    stock: 100,
+    criticalThreshold: 20,
     pricing: {
-      purchasePrice: 8.20,
+      purchasePrice: 10.00,
       vatRate: 0.20,
-      exchangeRate: 31.20,
-      otherExpenses: 50.00
+      exchangeRate: 1,
+      otherExpenses: 0
     },
     sellingPrice: 15.00
   }
