@@ -5,9 +5,10 @@ import { exportToCSV, formatCurrency } from '../utils/helpers';
 
 interface TransactionsProps {
   transactions: Transaction[];
+  companyName?: string;
 }
 
-const Transactions: React.FC<TransactionsProps> = ({ transactions }) => {
+const Transactions: React.FC<TransactionsProps> = ({ transactions, companyName }) => {
   const [filterType, setFilterType] = useState<'ALL' | TransactionType>('ALL');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -65,7 +66,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions }) => {
         <div className="lg:col-span-3 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-wrap gap-4 items-end">
           <div className="flex-1 min-w-[150px]">
             <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">İşlem Tipi</label>
-            <select value={filterType} onChange={e => setFilterType(e.target.value as any)} className="w-full p-3 rounded-xl border border-slate-200 text-sm">
+            <select value={filterType} onChange={e => setFilterType(e.target.value as any)} className="w-full p-3 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500">
               <option value="ALL">Tüm İşlemler</option>
               <option value={TransactionType.IN}>Alımlar</option>
               <option value={TransactionType.OUT}>Satışlar</option>
@@ -136,25 +137,23 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions }) => {
         </div>
       </div>
 
-      {/* İŞLEM DETAY MODALI VE YAZDIRMA TASARIMI */}
       {selectedTx && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                 <div className="p-6 border-b flex justify-between items-center bg-gray-50 print:hidden">
                     <h3 className="font-bold text-gray-800">İşlem Detayı / Makbuz</h3>
                     <div className="flex space-x-3">
-                        <button onClick={handlePrint} className="px-6 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl shadow-lg">YAZDIR 🖨️</button>
-                        <button onClick={() => setSelectedTx(null)} className="p-2 text-gray-400 hover:text-gray-600">✕</button>
+                        <button onClick={handlePrint} className="px-6 py-2 bg-slate-800 text-white text-xs font-bold rounded-xl shadow-lg hover:scale-105 transition">YAZDIR 🖨️</button>
+                        <button onClick={() => setSelectedTx(null)} className="p-2 text-gray-400 hover:text-gray-600 transition">✕</button>
                     </div>
                 </div>
                 
-                {/* YAZDIRILABİLİR ALAN */}
                 <div className="flex-1 overflow-y-auto p-12 bg-white print:p-0" id="printable-invoice">
                     <style>{`
                         @media print {
                             body * { visibility: hidden; }
                             #printable-invoice, #printable-invoice * { visibility: visible; }
-                            #printable-invoice { position: absolute; left: 0; top: 0; width: 100%; padding: 20px; }
+                            #printable-invoice { position: absolute; left: 0; top: 0; width: 100%; padding: 40px; }
                             .print-hidden { display: none !important; }
                         }
                     `}</style>
@@ -165,9 +164,10 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions }) => {
                             <p className="text-sm text-slate-500 mt-1 uppercase tracking-widest font-bold"># {selectedTx.id}</p>
                         </div>
                         <div className="text-right">
-                            <p className="font-black text-slate-900 text-lg">ELEKTRİK MARKET</p>
-                            <p className="text-xs text-slate-500">Operasyonel Kayıt Sistemi</p>
-                            <p className="text-xs text-slate-500 mt-2">{new Date(selectedTx.date).toLocaleString('tr-TR')}</p>
+                            {/* STATİK METİN YERİNE companyName PROP'U KULLANILDI */}
+                            <p className="font-black text-slate-900 text-xl uppercase tracking-tighter leading-none">{companyName || 'KURUMSAL İŞLETME'}</p>
+                            <p className="text-xs text-slate-500 mt-1">Operasyonel Kayıt Sistemi</p>
+                            <p className="text-xs text-slate-500 mt-3 font-medium">{new Date(selectedTx.date).toLocaleString('tr-TR')}</p>
                         </div>
                     </div>
 
@@ -179,7 +179,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions }) => {
                         <div className="text-right">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">İŞLEM TİPİ</p>
                             <p className="text-xl font-black text-slate-900">{selectedTx.type}</p>
-                            <p className="text-xs text-slate-500 mt-1">Düzenleyen: {selectedTx.user}</p>
+                            <p className="text-xs text-slate-500 mt-1 font-bold">Düzenleyen: {selectedTx.user}</p>
                         </div>
                     </div>
 
@@ -202,9 +202,9 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions }) => {
                                 return (
                                     <tr key={idx}>
                                         <td className="py-4 font-bold text-slate-800">{item.productName}</td>
-                                        <td className="py-4 text-center">{item.quantity}</td>
+                                        <td className="py-4 text-center font-bold">{item.quantity}</td>
                                         <td className="py-4 text-right">{formatCurrency(lineExVAT / item.quantity)}</td>
-                                        <td className="py-4 text-right">{formatCurrency(lineVAT)}</td>
+                                        <td className="py-4 text-right text-slate-500">{formatCurrency(lineVAT)}</td>
                                         <td className="py-4 text-right font-black">{formatCurrency(lineTotal)}</td>
                                     </tr>
                                 );
@@ -213,7 +213,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions }) => {
                     </table>
 
                     <div className="flex justify-end">
-                        <div className="w-64 space-y-3">
+                        <div className="w-72 space-y-3">
                             <div className="flex justify-between text-sm font-bold text-slate-500">
                                 <span>Ara Toplam (KDV Hariç):</span>
                                 <span>{formatCurrency(selectedTx.totalAmount / 1.2)}</span>
@@ -222,7 +222,7 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions }) => {
                                 <span>KDV (%20) Toplamı:</span>
                                 <span>{formatCurrency(selectedTx.totalAmount - (selectedTx.totalAmount / 1.2))}</span>
                             </div>
-                            <div className="h-px bg-slate-900 my-4"></div>
+                            <div className="h-0.5 bg-slate-900 my-4"></div>
                             <div className="flex justify-between items-center">
                                 <span className="font-black text-slate-900">GENEL TOPLAM:</span>
                                 <span className="text-2xl font-black text-slate-900">{formatCurrency(selectedTx.totalAmount)}</span>
@@ -230,8 +230,8 @@ const Transactions: React.FC<TransactionsProps> = ({ transactions }) => {
                         </div>
                     </div>
 
-                    <div className="mt-20 pt-8 border-t border-slate-100 text-[10px] text-slate-400 text-center italic">
-                        Bu belge DB Tech Kurumsal ERP yazılımı üzerinden dijital olarak oluşturulmuştur.
+                    <div className="mt-32 pt-8 border-t border-slate-100 text-[10px] text-slate-400 text-center italic font-bold">
+                        Bu belge {companyName || 'İşletme'} operasyonel kayıtları üzerinden dijital olarak oluşturulmuştur.
                     </div>
                 </div>
             </div>
