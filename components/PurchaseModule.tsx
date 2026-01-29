@@ -46,12 +46,9 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
     const contact = contacts.find(c => c.id === selectedContactId);
     if (!contact) return alert('Lütfen bir tedarikçi seçin.');
 
-    // Fix: Added missing subtotal and totalDiscount properties to satisfy Transaction interface.
-    // In purchase module, subtotal equals totalAmount as there is no discount UI currently.
     onAddTransaction({
       id: Math.random().toString(36).substring(7).toUpperCase(),
       items: cart,
-      // Alım stok artırır (IN), İade stok azaltır (OUT)
       type: isReturn ? TransactionType.OUT : TransactionType.IN, 
       contactId: contact.id,
       contactName: contact.name,
@@ -64,7 +61,7 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
     });
 
     setCart([]);
-    alert(isReturn ? 'İade işlemi başarıyla tamamlandı (Stoktan düşüldü).' : 'Alım işlemi başarıyla kaydedildi (Stoklar güncellendi).');
+    alert(isReturn ? 'İade işlemi başarıyla tamamlandı.' : 'Alım işlemi başarıyla kaydedildi.');
   };
 
   return (
@@ -93,7 +90,7 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
             <div className="md:col-span-2">
               <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Ürün Kartı Seçin</label>
               <select 
-                className="w-full p-4 rounded-xl bg-gray-50 border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full p-4 rounded-xl bg-gray-50 border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                 value={selectedProductId}
                 onChange={e => setSelectedProductId(e.target.value)}
               >
@@ -105,9 +102,10 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
               <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Miktar</label>
               <input 
                 type="number" 
-                className="w-full p-4 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold" 
-                value={qty} 
-                onChange={e => setQty(Number(e.target.value))} 
+                className="w-full p-4 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" 
+                value={qty === 0 ? '' : qty} 
+                placeholder="1"
+                onChange={e => setQty(e.target.value === '' ? 0 : parseFloat(e.target.value))} 
                 min="1" 
               />
             </div>
@@ -124,7 +122,7 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
 
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 min-h-[400px] flex flex-col overflow-hidden">
           <div className="p-6 border-b border-gray-50">
-            <h3 className="text-lg font-bold">İşlem Sepeti ({isReturn ? 'İade Listesi' : 'Giriş Listesi'})</h3>
+            <h3 className="text-lg font-bold">İşlem Sepeti</h3>
           </div>
           <div className="flex-1 p-6 space-y-3 overflow-y-auto">
             {cart.length === 0 && (
@@ -140,7 +138,7 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
                     <p className="text-xs text-gray-400 font-medium">{item.quantity} x {formatCurrency(item.unitPrice)}</p>
                     <p className={`text-lg font-black ${isReturn ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(item.quantity * item.unitPrice)}</p>
                   </div>
-                  <button onClick={() => removeFromCart(i)} className="text-red-400 hover:text-red-600 font-bold">✕</button>
+                  <button onClick={() => removeFromCart(i)} className="text-red-400 hover:text-red-600 font-bold p-2">✕</button>
                 </div>
               </div>
             ))}
@@ -156,7 +154,7 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
             <div className="mb-10">
               <label className="block text-[10px] text-slate-500 mb-3 font-bold uppercase tracking-widest">TEDARİKÇİ (CARİ)</label>
               <select 
-                className="w-full bg-slate-800 border-slate-700 rounded-2xl p-4 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full bg-slate-800 border-slate-700 rounded-2xl p-4 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                 value={selectedContactId}
                 onChange={e => setSelectedContactId(e.target.value)}
               >
