@@ -3,7 +3,7 @@ import React from 'react';
 import { UserRole } from '../types';
 
 interface SidebarProps {
-  activeTab: 'dashboard' | 'inventory' | 'purchases' | 'sales' | 'transactions' | 'contacts' | 'saas';
+  activeTab: 'dashboard' | 'inventory' | 'purchases' | 'sales' | 'transactions' | 'contacts' | 'saas' | 'expenses' | 'finance';
   setActiveTab: (tab: any) => void;
   userRole: UserRole;
   onLogout: () => void;
@@ -13,29 +13,26 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, userRole, onLogout, isImpersonating, onExitImpersonation }) => {
   
-  // Süper Admin (DB Tech) Menüsü
   const superAdminItems = [
     { id: 'saas', label: 'DB Tech Panel', icon: '🏢' },
   ];
 
-  // Kiracı (Firma) Menüsü
   const tenantItems = [
     { id: 'dashboard', label: 'Genel Bakış', icon: '🏠', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
     { id: 'inventory', label: 'Stok Listesi', icon: '📋', roles: [UserRole.ADMIN, UserRole.PURCHASE, UserRole.SALES, UserRole.SUPER_ADMIN] },
     { id: 'contacts', label: 'Cari Kartlar', icon: '👥', roles: [UserRole.ADMIN, UserRole.PURCHASE, UserRole.SALES, UserRole.SUPER_ADMIN] },
     { id: 'purchases', label: 'Mal Alımı', icon: '📥', roles: [UserRole.ADMIN, UserRole.PURCHASE, UserRole.SUPER_ADMIN] },
     { id: 'sales', label: 'Satış İşlemi', icon: '📤', roles: [UserRole.ADMIN, UserRole.SALES, UserRole.SUPER_ADMIN] },
+    { id: 'expenses', label: 'Masraflar', icon: '🧾', roles: [UserRole.ADMIN, UserRole.PURCHASE, UserRole.SUPER_ADMIN] },
     { id: 'transactions', label: 'İşlem Geçmişi', icon: '📜', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
+    { id: 'finance', label: 'Mali Tablo', icon: '📊', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
   ];
 
-  // Hangi menüyü göstereceğiz?
   let displayItems = [];
   
   if (userRole === UserRole.SUPER_ADMIN && !isImpersonating) {
-    // Sadece SaaS yönetimini görsün
     displayItems = superAdminItems.map(item => ({...item, roles: [UserRole.SUPER_ADMIN]}));
   } else {
-    // Normal operasyonel menüyü görsün (Impersonate durumunda da burası çalışır)
     displayItems = tenantItems.filter(item => item.roles.includes(userRole) || isImpersonating);
   }
 
@@ -53,7 +50,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, userRole, on
         </div>
       </div>
 
-      <nav className="flex-1 px-4 space-y-2">
+      <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
         {displayItems.map((item) => (
           <button
             key={item.id}
@@ -74,23 +71,16 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, userRole, on
         {userRole === UserRole.SUPER_ADMIN && !isImpersonating && (
           <div className="mb-4 px-3 py-2 bg-indigo-900/20 rounded-lg border border-indigo-900/50">
             <p className="text-[10px] text-indigo-400 font-bold uppercase">Süper Admin Modu</p>
-            <p className="text-[9px] text-indigo-300/60">Tüm yetkilere sahipsiniz.</p>
           </div>
         )}
         
         {isImpersonating ? (
-           <button 
-             onClick={onExitImpersonation}
-             className="w-full flex items-center p-3 rounded-xl bg-red-600 text-white hover:bg-red-700 transition-all shadow-lg animate-pulse"
-           >
+           <button onClick={onExitImpersonation} className="w-full flex items-center p-3 rounded-xl bg-red-600 text-white hover:bg-red-700 transition-all shadow-lg animate-pulse">
              <span className="text-xl mr-0 md:mr-3">🔙</span>
              <span className="font-bold text-xs hidden md:inline uppercase">Yöneticiye Dön</span>
            </button>
         ) : (
-           <button 
-             onClick={onLogout}
-             className="w-full flex items-center p-3 rounded-xl text-slate-500 hover:bg-red-500/10 hover:text-red-500 transition-all"
-           >
+           <button onClick={onLogout} className="w-full flex items-center p-3 rounded-xl text-slate-500 hover:bg-red-500/10 hover:text-red-500 transition-all">
              <span className="text-xl mr-0 md:mr-3">🚪</span>
              <span className="font-medium text-sm hidden md:inline">Sistemden Ayrıl</span>
            </button>
