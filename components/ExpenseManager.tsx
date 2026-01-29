@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Expense, User, UserRole } from '../types';
+import { Expense, User } from '../types';
 import { formatCurrency } from '../utils/helpers';
 
 interface ExpenseManagerProps {
@@ -47,39 +47,41 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, onAdd, onDele
       </div>
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-gray-50/50 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b">
-              <th className="py-5 px-6">Tarih</th>
-              <th className="py-5 px-6">Kategori</th>
-              <th className="py-5 px-6">Açıklama</th>
-              <th className="py-5 px-6">Personel</th>
-              <th className="py-5 px-6">Tutar</th>
-              <th className="py-5 px-6 text-right">İşlem</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 text-sm">
-            {expenses.map(e => (
-              <tr key={e.id} className="hover:bg-red-50/30 transition">
-                <td className="py-4 px-6 font-medium text-gray-500">{new Date(e.date).toLocaleDateString('tr-TR')}</td>
-                <td className="py-4 px-6">
-                  <span className="px-3 py-1 bg-red-50 text-red-600 rounded-lg font-bold text-[10px] uppercase">
-                    {e.category}
-                  </span>
-                </td>
-                <td className="py-4 px-6 text-gray-700 font-bold italic">{e.description}</td>
-                <td className="py-4 px-6 text-gray-400">{e.user_name}</td>
-                <td className="py-4 px-6 font-black text-gray-900">{formatCurrency(e.amount)}</td>
-                <td className="py-4 px-6 text-right">
-                  <button onClick={() => { if(confirm('Bu kaydı silmek istediğinize emin misiniz?')) onDelete(e.id); }} className="p-2 text-red-400 hover:text-red-600">🗑️</button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-gray-50/50 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b">
+                <th className="py-5 px-6">Tarih</th>
+                <th className="py-5 px-6">Kategori</th>
+                <th className="py-5 px-6">Açıklama</th>
+                <th className="py-5 px-6">Personel</th>
+                <th className="py-5 px-6">Tutar</th>
+                <th className="py-5 px-6 text-right">İşlem</th>
               </tr>
-            ))}
-            {expenses.length === 0 && (
-              <tr><td colSpan={6} className="py-20 text-center text-gray-300 italic">Henüz gider kaydı bulunmuyor.</td></tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-sm">
+              {expenses.map(e => (
+                <tr key={e.id} className="hover:bg-red-50/30 transition">
+                  <td className="py-4 px-6 font-medium text-gray-500">{new Date(e.date).toLocaleDateString('tr-TR')}</td>
+                  <td className="py-4 px-6">
+                    <span className="px-3 py-1 bg-red-50 text-red-600 rounded-lg font-bold text-[10px] uppercase">
+                      {e.category}
+                    </span>
+                  </td>
+                  <td className="py-4 px-6 text-gray-700 font-bold italic">{e.description}</td>
+                  <td className="py-4 px-6 text-gray-400">{e.user_name}</td>
+                  <td className="py-4 px-6 font-black text-gray-900">{formatCurrency(e.amount)}</td>
+                  <td className="py-4 px-6 text-right">
+                    <button onClick={() => { if(confirm('Bu kaydı silmek istediğinize emin misiniz?')) onDelete(e.id); }} className="p-2 text-red-400 hover:text-red-600 transition-colors">🗑️</button>
+                  </td>
+                </tr>
+              ))}
+              {expenses.length === 0 && (
+                <tr><td colSpan={6} className="py-20 text-center text-gray-300 italic">Henüz gider kaydı bulunmuyor.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {showModal && (
@@ -88,13 +90,13 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, onAdd, onDele
             <form onSubmit={handleSubmit}>
               <div className="p-6 border-b bg-gray-50 flex justify-between items-center">
                 <h3 className="font-bold text-gray-800">Yeni Masraf Girişi</h3>
-                <button type="button" onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                <button type="button" onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 p-2">✕</button>
               </div>
               <div className="p-8 space-y-6">
                 <div>
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Kategori</label>
                   <select 
-                    className="w-full p-4 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-red-500"
+                    className="w-full p-4 rounded-xl border border-gray-200 bg-gray-50 outline-none focus:ring-2 focus:ring-red-500 cursor-pointer"
                     value={formData.category}
                     onChange={e => setFormData({...formData, category: e.target.value})}
                   >
@@ -107,8 +109,9 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, onAdd, onDele
                     type="number" 
                     required 
                     className="w-full p-4 rounded-xl border-2 border-red-50 text-2xl font-black text-red-600 focus:ring-2 focus:ring-red-500 outline-none" 
-                    value={formData.amount || ''} 
-                    onChange={e => setFormData({...formData, amount: Number(e.target.value)})}
+                    value={formData.amount === 0 ? '' : formData.amount} 
+                    placeholder="0.00"
+                    onChange={e => setFormData({...formData, amount: e.target.value === '' ? 0 : parseFloat(e.target.value)})}
                   />
                 </div>
                 <div>
@@ -123,8 +126,8 @@ const ExpenseManager: React.FC<ExpenseManagerProps> = ({ expenses, onAdd, onDele
                 </div>
               </div>
               <div className="p-6 bg-gray-50 border-t flex justify-end space-x-3">
-                <button type="button" onClick={() => setShowModal(false)} className="text-slate-400 font-bold">Vazgeç</button>
-                <button type="submit" className="px-10 py-4 bg-red-600 text-white font-black rounded-xl shadow-lg shadow-red-500/20">MASRAFI KAYDET</button>
+                <button type="button" onClick={() => setShowModal(false)} className="text-slate-400 font-bold hover:text-slate-600 transition-colors">Vazgeç</button>
+                <button type="submit" className="px-10 py-4 bg-red-600 text-white font-black rounded-xl shadow-lg shadow-red-500/20 active:scale-95 transition-transform">MASRAFI KAYDET</button>
               </div>
             </form>
           </div>
