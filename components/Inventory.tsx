@@ -215,7 +215,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpsert, onBulkUpsert,
                     </td>
                     {showCosts && (
                       <td className="py-4 px-6">
-                        <span className="text-xs font-medium text-gray-600">{formatCurrency(netPrice)}</span>
+                        <span className="text-sm font-black text-slate-800">{formatCurrency(netPrice)}</span>
                       </td>
                     )}
                     {showCosts && (
