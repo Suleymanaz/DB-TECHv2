@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product, Transaction, TransactionType, Contact, TransactionItem } from '../types';
-import { calculateUnitCost, formatCurrency } from '../utils/helpers';
+import { formatCurrency } from '../utils/helpers';
 
 interface SalesModuleProps {
   products: Product[];
@@ -12,11 +12,20 @@ interface SalesModuleProps {
 const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTransaction }) => {
   const [cart, setCart] = useState<TransactionItem[]>([]);
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [selectedContactId, setSelectedContactId] = useState('c1');
+  const [selectedContactId, setSelectedContactId] = useState('');
   const [qty, setQty] = useState(1);
   const [discount, setDiscount] = useState(0); 
   const [laborName, setLaborName] = useState('Elektrik İşçiliği');
   const [laborPrice, setLaborPrice] = useState(0);
+
+  // OTOMATIK VARSAYILAN MÜŞTERİ ATAMA (PERAKENDE VARSA ONU SEÇ)
+  useEffect(() => {
+    if (contacts.length > 0 && !selectedContactId) {
+        const perakende = contacts.find(c => c.name.toUpperCase().includes('PERAKENDE'));
+        if (perakende) setSelectedContactId(perakende.id);
+        else setSelectedContactId(contacts[0].id);
+    }
+  }, [contacts]);
 
   const product = products.find(p => p.id === selectedProductId);
   const discountedPrice = product ? product.sellingPrice * (1 - (discount / 100)) : 0;
@@ -78,8 +87,12 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
 
   const handleCompleteSale = () => {
     if (cart.length === 0) return alert('Sepet boş!');
+    
+    // Güçlendirilmiş cari kontrolü
     const contact = contacts.find(c => c.id === selectedContactId);
-    if (!contact) return alert('Lütfen müşteri seçin.');
+    if (!contact) {
+        return alert('Lütfen bir müşteri seçin. Eğer liste boşsa, Cari Kartlar sekmesinden bir müşteri ekleyin.');
+    }
 
     onAddTransaction({
       id: Math.random().toString(36).substring(7).toUpperCase(),
@@ -95,7 +108,7 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
     });
 
     setCart([]);
-    alert('Satış başarıyla tamamlandı.');
+    alert(`Satış başarıyla tamamlandı. (${contact.name})`);
   };
 
   return (
@@ -114,7 +127,7 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
                 <option value="">Lütfen seçim yapın...</option>
                 {products.map(p => (
                   <option key={p.id} value={p.id} disabled={p.stock <= 0}>
-                    {p.name} - {formatCurrency(p.sellingPrice)} (Mevcut: {p.stock} {p.unit})
+                    {p.name} - {formatCurrency(p.sellingPrice)} (Stok: {p.stock})
                   </option>
                 ))}
               </select>
@@ -125,18 +138,12 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
             </div>
             <div>
               <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">İskonto (%)</label>
-              <input type="number" className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold focus:ring-2 focus:ring-orange-500 outline-none" value={discount} onChange={e => setDiscount(Math.min(100, Math.max(0, Number(e.target.value))))} min="0" max="100" />
+              <input type="number" className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold" value={discount} onChange={e => setDiscount(Math.min(100, Math.max(0, Number(e.target.value))))} min="0" max="100" />
             </div>
             <div className="flex items-end">
               <button onClick={addToCart} className="w-full bg-blue-600 text-white font-bold h-[46px] rounded-xl hover:bg-blue-700 transition active:scale-95 shadow-lg shadow-blue-500/20">Sepete At</button>
             </div>
           </div>
-          {product && discount > 0 && (
-             <div className="mt-4 p-3 bg-orange-50 rounded-xl border border-orange-100 flex justify-between items-center animate-in fade-in slide-in-from-top-2">
-                <span className="text-xs font-bold text-orange-700">% {discount} İndirim Uygulanıyor</span>
-                <span className="text-sm font-black text-orange-800">Net Birim: {formatCurrency(discountedPrice)}</span>
-             </div>
-          )}
         </div>
 
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
@@ -177,14 +184,7 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
                     </div>
                     <div className="text-right flex items-center space-x-6">
                       <div>
-                        {isDiscounted ? (
-                            <div className="flex flex-col items-end">
-                                <span className="text-[9px] text-gray-400 line-through mb-0.5">{formatCurrency(item.unitPrice)}</span>
-                                <p className="text-[10px] text-orange-600 font-bold">{item.quantity} x {formatCurrency(item.unitPrice * (1 - item.discount! / 100))}</p>
-                            </div>
-                        ) : (
-                            <p className="text-[10px] text-gray-400 font-medium">{item.quantity} x {formatCurrency(item.unitPrice)}</p>
-                        )}
+                        <p className="text-[10px] text-gray-400 font-medium">{item.quantity} x {formatCurrency(isDiscounted ? item.unitPrice * (1 - item.discount! / 100) : item.unitPrice)}</p>
                         <p className="text-md font-black text-gray-900">{formatCurrency(itemTotal)}</p>
                       </div>
                       <button onClick={() => removeFromCart(i)} className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition">✕</button>
@@ -204,6 +204,7 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
             <div className="mb-10">
               <label className="block text-[10px] text-slate-500 mb-3 font-black uppercase tracking-tighter">MÜŞTERİ / MUHATAP CARİ</label>
               <select className="w-full bg-slate-800 border-slate-700 rounded-2xl p-4 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none" value={selectedContactId} onChange={e => setSelectedContactId(e.target.value)}>
+                {contacts.length === 0 && <option value="">Müşteri Bulunamadı!</option>}
                 {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
