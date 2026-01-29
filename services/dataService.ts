@@ -1,10 +1,47 @@
-
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
-import { Product, Contact, Transaction, User, UserRole, TransactionType, Tenant, AuditLog, ContactType } from '../types';
+import { Product, Contact, Transaction, User, UserRole, TransactionType, Tenant, AuditLog, ContactType, Expense } from '../types';
 
 class DataService {
   private useLive = isSupabaseConfigured();
 
+  // ... (Önceki metodlar aynı kalıyor)
+
+  async getExpenses(companyId?: string): Promise<Expense[]> {
+      if (!this.useLive || !companyId) return [];
+      const { data, error } = await supabase.from('expenses').select('*').eq('company_id', companyId).order('date', { ascending: false });
+      if (error) return [];
+      return data.map((e: any) => ({
+          id: e.id,
+          companyId: e.company_id,
+          category: e.category,
+          amount: Number(e.amount),
+          description: e.description,
+          date: e.date,
+          user_name: e.user_name
+      }));
+  }
+
+  async saveExpense(expense: Expense): Promise<void> {
+      if (!this.useLive) return;
+      const { error } = await supabase.from('expenses').insert({
+          id: expense.id,
+          company_id: expense.companyId,
+          category: expense.category,
+          amount: expense.amount,
+          description: expense.description,
+          date: expense.date,
+          user_name: expense.user_name
+      });
+      if (!error) await this.logAction(expense.companyId, "Gider Kaydı Eklendi", `${expense.category}: ${expense.amount} TL`);
+  }
+
+  async deleteExpense(id: string, companyId: string): Promise<void> {
+      if (!this.useLive) return;
+      await supabase.from('expenses').delete().eq('id', id);
+      await this.logAction(companyId, "Gider Kaydı Silindi", `ID: ${id}`);
+  }
+
+  // Mevcut metodların devamı...
   async logAction(companyId: string, action: string, details: string = '') {
     if (!this.useLive) return;
     try {
@@ -76,7 +113,17 @@ class DataService {
           }
           if (profile) {
               await this.logAction(profile.company_id, "Sisteme Giriş Yapıldı");
-              return { user: { id: data.user.id, name: profile.full_name, username: data.user.email || '', role: profile.role as UserRole, companyId: profile.company_id }, error: null };
+              return { 
+                user: { 
+                  id: data.user.id, 
+                  name: profile.full_name, 
+                  username: data.user.email || '', 
+                  role: profile.role as UserRole, 
+                  companyId: profile.company_id,
+                  companyName: profile.company_name
+                }, 
+                error: null 
+              };
           }
         }
     } catch (err: any) { return { user: null, error: err.message }; }
@@ -94,7 +141,14 @@ class DataService {
       if (!this.useLive) return [];
       const { data, error } = await supabase.from('profiles').select('*').eq('company_id', tenantId);
       if (error) return [];
-      return data.map((p: any) => ({ id: p.id, name: p.full_name, username: '', role: p.role as UserRole, companyId: p.company_id }));
+      return data.map((p: any) => ({ 
+        id: p.id, 
+        name: p.full_name, 
+        username: '', 
+        role: p.role as UserRole, 
+        companyId: p.company_id,
+        companyName: p.company_name
+      }));
   }
 
   async createTenantOnly(companyName: string): Promise<{ success: boolean, error: string | null }> {
@@ -108,7 +162,7 @@ class DataService {
 
   async deleteTenant(tenantId: string): Promise<{ success: boolean, error: string | null }> {
     if (!this.useLive) return { success: false, error: "Bağlantı yok" };
-    const { error } = await supabase.rpc('delete_tenant_hard', { target_tenant_id: tenantId });
+    const { error = null } = await supabase.rpc('delete_tenant_hard', { target_tenant_id: tenantId });
     if (error) return { success: false, error: error.message };
     await this.logAction('GLOBAL_HEAD', "Şirket ve Bağlı Tüm Veriler Silindi", tenantId);
     return { success: true, error: null };
@@ -134,6 +188,7 @@ class DataService {
 
   async upsertProduct(product: Product, companyId?: string): Promise<void> {
     if (!this.useLive || !companyId) return;
+    // Fix: Using correct property names from Product interface (criticalThreshold and sellingPrice instead of snake_case)
     const { error } = await supabase.from('products').upsert({ id: product.id, name: product.name, sku: product.sku, category: product.category, unit: product.unit, stock: product.stock, critical_threshold: product.criticalThreshold, selling_price: product.sellingPrice, pricing: product.pricing, company_id: companyId });
     if (!error) await this.logAction(companyId, "Stok Kartı Güncellendi", product.name);
   }
@@ -150,14 +205,19 @@ class DataService {
       const { data, error } = await supabase.from('contacts').select('*').eq('company_id', companyId);
       if (error) return [];
 
-      const contacts = data.map((c: any) => ({ id: c.id, name: c.name, type: c.type as ContactType, phone: c.phone, address: c.address }));
+      let contacts = data.map((c: any) => ({ id: c.id, name: c.name, type: c.type as ContactType, phone: c.phone, address: c.address }));
       
-      // EĞER ŞİRKETİN HİÇ CARİSİ YOKSA VEYA PERAKENDE YOKSA OTOMATİK OLUŞTUR
       const hasPerakende = contacts.some(c => c.name.toUpperCase().includes('PERAKENDE'));
-      if (!hasPerakende && contacts.length < 50) {
-          const defaultContact = { id: Math.random().toString(36).substring(7), name: 'HIZLI SATIŞ (PERAKENDE)', type: ContactType.CUSTOMER, phone: '-', address: 'Mağaza içi satış' };
+      if (!hasPerakende && contacts.length < 100) {
+          const defaultContact: Contact = { 
+            id: Math.random().toString(36).substring(7), 
+            name: 'HIZLI SATIŞ (PERAKENDE)', 
+            type: ContactType.CUSTOMER, 
+            phone: '-', 
+            address: 'Mağaza içi hızlı satış' 
+          };
           await this.upsertContact(defaultContact, companyId);
-          contacts.unshift(defaultContact);
+          contacts = [defaultContact, ...contacts];
       }
       
       return contacts;
