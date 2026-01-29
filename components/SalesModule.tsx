@@ -18,17 +18,18 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
   const [laborName, setLaborName] = useState('Elektrik İşçiliği');
   const [laborPrice, setLaborPrice] = useState(0);
 
-  // OTOMATIK VARSAYILAN MÜŞTERİ ATAMA (PERAKENDE VARSA ONU SEÇ)
   useEffect(() => {
-    if (contacts.length > 0 && !selectedContactId) {
+    if (contacts.length > 0) {
+      const isValid = contacts.some(c => c.id === selectedContactId);
+      if (!isValid) {
         const perakende = contacts.find(c => c.name.toUpperCase().includes('PERAKENDE'));
         if (perakende) setSelectedContactId(perakende.id);
         else setSelectedContactId(contacts[0].id);
+      }
     }
-  }, [contacts]);
+  }, [contacts, selectedContactId]);
 
   const product = products.find(p => p.id === selectedProductId);
-  const discountedPrice = product ? product.sellingPrice * (1 - (discount / 100)) : 0;
 
   const addToCart = () => {
     if (!product) return;
@@ -85,14 +86,15 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
   const totalAmount = cart.reduce((sum, item) => sum + calculateItemTotal(item), 0);
   const totalDiscount = subtotal - totalAmount;
 
+  // KDV HESAPLARI (KDV DAHİL FİYATTAN GERİYE DOĞRU)
+  // %20 KDV varsayımıyla (1.20)
+  const totalExcludingVAT = totalAmount / 1.2;
+  const vatAmount = totalAmount - totalExcludingVAT;
+
   const handleCompleteSale = () => {
     if (cart.length === 0) return alert('Sepet boş!');
-    
-    // Güçlendirilmiş cari kontrolü
     const contact = contacts.find(c => c.id === selectedContactId);
-    if (!contact) {
-        return alert('Lütfen bir müşteri seçin. Eğer liste boşsa, Cari Kartlar sekmesinden bir müşteri ekleyin.');
-    }
+    if (!contact) return alert('Lütfen müşteri seçin.');
 
     onAddTransaction({
       id: Math.random().toString(36).substring(7).toUpperCase(),
@@ -114,22 +116,15 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
       <div className="lg:col-span-2 space-y-6">
+        {/* Giriş Alanları */}
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-bold mb-4 flex items-center"><span className="mr-2 text-blue-500">📦</span> Stoktan Ürün Ekle</h3>
+          <h3 className="text-lg font-bold mb-4 flex items-center"><span className="mr-2 text-blue-500">📦</span> Ürün Seçimi</h3>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Malzeme Seçimi</label>
-              <select 
-                className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                value={selectedProductId}
-                onChange={e => { setSelectedProductId(e.target.value); setDiscount(0); }}
-              >
-                <option value="">Lütfen seçim yapın...</option>
-                {products.map(p => (
-                  <option key={p.id} value={p.id} disabled={p.stock <= 0}>
-                    {p.name} - {formatCurrency(p.sellingPrice)} (Stok: {p.stock})
-                  </option>
-                ))}
+              <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Malzeme</label>
+              <select className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value={selectedProductId} onChange={e => { setSelectedProductId(e.target.value); setDiscount(0); }}>
+                <option value="">Seçiniz...</option>
+                {products.map(p => <option key={p.id} value={p.id} disabled={p.stock <= 0}>{p.name} ({p.stock} {p.unit})</option>)}
               </select>
             </div>
             <div>
@@ -138,93 +133,101 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
             </div>
             <div>
               <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">İskonto (%)</label>
-              <input type="number" className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold" value={discount} onChange={e => setDiscount(Math.min(100, Math.max(0, Number(e.target.value))))} min="0" max="100" />
+              <input type="number" className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold" value={discount} onChange={e => setDiscount(Number(e.target.value))} min="0" max="100" />
             </div>
             <div className="flex items-end">
-              <button onClick={addToCart} className="w-full bg-blue-600 text-white font-bold h-[46px] rounded-xl hover:bg-blue-700 transition active:scale-95 shadow-lg shadow-blue-500/20">Sepete At</button>
+              <button onClick={addToCart} className="w-full bg-blue-600 text-white font-bold h-[46px] rounded-xl hover:bg-blue-700 transition">Ekle</button>
             </div>
           </div>
         </div>
 
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-          <h3 className="text-lg font-bold mb-4 flex items-center"><span className="mr-2 text-indigo-500">🛠️</span> Hizmet / İşçilik</h3>
+          <h3 className="text-lg font-bold mb-4 flex items-center"><span className="mr-2 text-indigo-500">🛠️</span> İşçilik</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Hizmet Açıklaması</label>
-              <input type="text" className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={laborName} onChange={e => setLaborName(e.target.value)} placeholder="Örn: Montaj Hizmeti" />
+              <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Açıklama</label>
+              <input type="text" className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm" value={laborName} onChange={e => setLaborName(e.target.value)} />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Hizmet Bedeli</label>
-              <input type="number" className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none" value={laborPrice || ''} onChange={e => setLaborPrice(Number(e.target.value))} placeholder="0.00" />
+              <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Bedel (KDV Dahil)</label>
+              <input type="number" className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold" value={laborPrice || ''} onChange={e => setLaborPrice(Number(e.target.value))} />
             </div>
             <div className="flex items-end">
-              <button onClick={addLaborToCart} className="w-full bg-indigo-600 text-white font-bold h-[46px] rounded-xl hover:bg-indigo-700 transition active:scale-95 shadow-lg shadow-indigo-500/20">Ekle</button>
+              <button onClick={addLaborToCart} className="w-full bg-indigo-600 text-white font-bold h-[46px] rounded-xl hover:bg-indigo-700 transition">Ekle</button>
             </div>
           </div>
         </div>
 
+        {/* Sepet */}
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden min-h-[400px] flex flex-col">
-          <div className="p-6 border-b border-gray-50 bg-gray-50/30"><h3 className="text-lg font-bold">Aktif Satış Sepeti</h3></div>
+          <div className="p-6 border-b border-gray-50 bg-gray-50/30"><h3 className="text-lg font-bold">Satış Sepeti</h3></div>
           <div className="flex-1 overflow-y-auto p-6 space-y-3">
             {cart.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-gray-300">
-                <span className="text-5xl mb-4 opacity-20">🛒</span>
-                <p className="italic text-sm">Satış için henüz bir kalem eklemediniz.</p>
-              </div>
+              <div className="flex flex-col items-center justify-center h-full text-gray-300 italic text-sm">Sepetiniz boş.</div>
             ) : (
-              cart.map((item, i) => {
-                const itemTotal = calculateItemTotal(item);
-                const isDiscounted = !!item.discount;
-                return (
-                  <div key={i} className="flex items-center justify-between p-4 bg-white hover:bg-gray-50 rounded-2xl border border-gray-100 transition shadow-sm relative overflow-hidden">
-                    {isDiscounted && <div className="absolute top-0 right-0 bg-orange-500 text-white text-[8px] font-black px-3 py-1 rounded-bl-xl uppercase tracking-widest">% {item.discount} İSKONTO</div>}
-                    <div className="flex-1">
-                      <p className="font-bold text-gray-800 text-sm">{item.productName}</p>
-                      <p className="text-[9px] text-blue-500 font-black uppercase tracking-widest">{item.isLabor ? 'SERVİS' : 'STOK'}</p>
-                    </div>
-                    <div className="text-right flex items-center space-x-6">
-                      <div>
-                        <p className="text-[10px] text-gray-400 font-medium">{item.quantity} x {formatCurrency(isDiscounted ? item.unitPrice * (1 - item.discount! / 100) : item.unitPrice)}</p>
-                        <p className="text-md font-black text-gray-900">{formatCurrency(itemTotal)}</p>
-                      </div>
-                      <button onClick={() => removeFromCart(i)} className="w-8 h-8 rounded-full bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition">✕</button>
-                    </div>
+              cart.map((item, i) => (
+                <div key={i} className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-2xl">
+                  <div className="flex-1">
+                    <p className="font-bold text-gray-800 text-sm">{item.productName}</p>
+                    <p className="text-[10px] text-gray-400">{item.isLabor ? 'Hizmet' : 'Ürün'}</p>
                   </div>
-                );
-              })
+                  <div className="text-right flex items-center space-x-6">
+                    <div>
+                      <p className="text-[10px] text-gray-400">{item.quantity} x {formatCurrency(item.unitPrice)}</p>
+                      <p className="text-sm font-black">{formatCurrency(calculateItemTotal(item))}</p>
+                    </div>
+                    <button onClick={() => removeFromCart(i)} className="text-red-400 hover:text-red-600">✕</button>
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>
       </div>
 
       <div className="space-y-6">
-        <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-2xl flex flex-col min-h-[600px] border border-slate-800">
+        <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-2xl flex flex-col min-h-[600px]">
           <div className="flex-1">
-            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-10 border-b border-slate-800 pb-4">SATIŞ ONAM VE CARİ</h3>
+            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-10 border-b border-slate-800 pb-4">ÖDEME VE CARİ</h3>
+            
             <div className="mb-10">
-              <label className="block text-[10px] text-slate-500 mb-3 font-black uppercase tracking-tighter">MÜŞTERİ / MUHATAP CARİ</label>
+              <label className="block text-[10px] text-slate-500 mb-3 font-black uppercase">Müşteri Seçimi</label>
               <select className="w-full bg-slate-800 border-slate-700 rounded-2xl p-4 text-sm text-white focus:ring-2 focus:ring-blue-500 outline-none" value={selectedContactId} onChange={e => setSelectedContactId(e.target.value)}>
-                {contacts.length === 0 && <option value="">Müşteri Bulunamadı!</option>}
                 {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {contacts.length === 0 && <option value="">Müşteri Yok!</option>}
               </select>
             </div>
-            <div className="space-y-4 pt-8 mt-auto">
-              <div className="flex justify-between text-xs font-bold">
-                <span className="text-slate-500 uppercase tracking-widest">Ara Toplam:</span>
-                <span className="text-slate-300">{formatCurrency(subtotal)}</span>
+
+            <div className="space-y-4 pt-8 mt-auto border-t border-slate-800">
+              <div className="flex justify-between text-xs font-medium text-slate-400">
+                <span>Ara Toplam:</span>
+                <span>{formatCurrency(subtotal)}</span>
               </div>
-              <div className="flex justify-between text-xs font-bold">
-                <span className="text-orange-500 uppercase tracking-widest">Toplam İndirim:</span>
-                <span className="text-orange-400">-{formatCurrency(totalDiscount)}</span>
+              <div className="flex justify-between text-xs font-medium text-orange-400">
+                <span>İskonto:</span>
+                <span>-{formatCurrency(totalDiscount)}</span>
               </div>
-              <div className="h-px bg-slate-800 my-4"></div>
-              <div className="flex flex-col items-end space-y-1">
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">GENEL TAHSİLAT TUTARI</span>
-                <span className="text-5xl font-black text-blue-400 tracking-tighter">{formatCurrency(totalAmount)}</span>
+              
+              <div className="pt-4 space-y-2">
+                <div className="flex justify-between text-xs font-bold text-slate-500 border-b border-slate-800 pb-2">
+                    <span>KDV Hariç:</span>
+                    <span>{formatCurrency(totalExcludingVAT)}</span>
+                </div>
+                <div className="flex justify-between text-xs font-bold text-slate-500">
+                    <span>KDV (%20):</span>
+                    <span>{formatCurrency(vatAmount)}</span>
+                </div>
+              </div>
+
+              <div className="pt-6">
+                <div className="flex flex-col items-end">
+                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">KDV DAHİL TOPLAM</span>
+                    <span className="text-5xl font-black text-blue-400 tracking-tighter">{formatCurrency(totalAmount)}</span>
+                </div>
               </div>
             </div>
           </div>
-          <button onClick={handleCompleteSale} disabled={cart.length === 0} className={`w-full mt-10 py-6 font-black text-xl rounded-2xl transition shadow-xl active:scale-95 ${cart.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-500 shadow-blue-600/20' : 'bg-slate-800 text-slate-600 cursor-not-allowed'}`}>SATIŞI TAMAMLA</button>
+          <button onClick={handleCompleteSale} disabled={cart.length === 0} className={`w-full mt-10 py-6 font-black text-xl rounded-2xl transition shadow-xl active:scale-95 ${cart.length > 0 ? 'bg-blue-600 text-white hover:bg-blue-500' : 'bg-slate-800 text-slate-600 cursor-not-allowed'}`}>SATIŞI TAMAMLA</button>
         </div>
       </div>
     </div>
