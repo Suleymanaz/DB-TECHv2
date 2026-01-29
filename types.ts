@@ -10,7 +10,7 @@ export enum ContactType {
 }
 
 export enum UserRole {
-  SUPER_ADMIN = 'DB_TECH_ADMIN', // Platform Yöneticisi
+  SUPER_ADMIN = 'DB_TECH_ADMIN',
   ADMIN = 'YÖNETİCİ',
   PURCHASE = 'SATIN ALMA',
   SALES = 'SATIŞ'
@@ -23,7 +23,18 @@ export interface User {
   password?: string;
   role: UserRole;
   avatar?: string;
-  companyId?: string; // SaaS Tenant ID
+  companyId?: string;
+  companyName?: string;
+}
+
+export interface Expense {
+  id: string;
+  companyId: string;
+  category: string;
+  amount: number;
+  description: string;
+  date: string;
+  user_name: string;
 }
 
 export interface Tenant {
@@ -42,11 +53,11 @@ export interface Contact {
 }
 
 export interface TransactionItem {
-  productId?: string; // Empty for labor
+  productId?: string;
   productName: string;
   quantity: number;
   unitPrice: number;
-  discount?: number; // İskonto yüzdesi (0-100)
+  discount?: number;
   isLabor?: boolean;
 }
 
