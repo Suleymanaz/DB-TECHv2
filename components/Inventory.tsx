@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { Product, UserRole } from '../types';
 import { calculateUnitCost, formatCurrency, exportToCSV } from '../utils/helpers';
-import * as XLSX from 'xlsx';
+import { read, utils, writeFile } from 'xlsx';
 
 interface InventoryProps {
   products: Product[];
@@ -80,10 +80,10 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpsert, onBulkUpsert,
     reader.onload = (evt) => {
       try {
         const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wb = read(bstr, { type: 'binary' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws) as any[];
+        const data = utils.sheet_to_json(ws) as any[];
 
         const newProducts: Product[] = data.map(row => ({
           id: Math.random().toString(36).substring(7),
@@ -135,10 +135,10 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpsert, onBulkUpsert,
         'Satış Fiyatı': 25.00
       }
     ];
-    const ws = XLSX.utils.json_to_sheet(templateData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template");
-    XLSX.writeFile(wb, "Stok_Yukleme_Sablonu.xlsx");
+    const ws = utils.json_to_sheet(templateData);
+    const wb = utils.book_new();
+    utils.book_append_sheet(wb, ws, "Template");
+    writeFile(wb, "Stok_Yukleme_Sablonu.xlsx");
   };
 
   return (
