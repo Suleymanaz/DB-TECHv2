@@ -12,7 +12,7 @@ import Login from './components/Login';
 import SaaSManager from './components/SaaSManager';
 import ExpenseManager from './components/ExpenseManager';
 import FinancialReports from './components/FinancialReports';
-import Settings from './components/Settings';
+import CompanySettings from './components/CompanySettings';
 import { dataService } from './services/dataService';
 import { isSupabaseConfigured } from './lib/supabaseClient';
 
@@ -265,7 +265,7 @@ const App: React.FC = () => {
             <FinancialReports transactions={transactions} expenses={expenses} />
           )}
           {activeTab === 'settings' && (
-              <Settings tenant={currentTenant!} onUpdate={handleUpdateTenantConfig} />
+              <CompanySettings tenant={currentTenant!} onUpdate={handleUpdateTenantConfig} />
           )}
         </div>
       </main>
