@@ -207,9 +207,15 @@ class DataService {
   }
 
   async getProducts(companyId?: string): Promise<Product[]> {
-    if (!this.useLive || !companyId) return [];
+    if (!this.useLive || !companyId) {
+      const local = localStorage.getItem(`db_erp_products_${companyId || 'demo'}`);
+      return local ? JSON.parse(local) : [];
+    }
     const { data, error } = await supabase.from('products').select('*').eq('company_id', companyId);
-    if (error) return [];
+    if (error) {
+      console.error("Ürün çekme hatası:", error);
+      return [];
+    }
     return data.map((d: any) => ({ 
       id: d.id, 
       name: d.name, 
@@ -229,7 +235,13 @@ class DataService {
   }
 
   async upsertProduct(product: Product, companyId?: string): Promise<void> {
-    if (!this.useLive || !companyId) return;
+    if (!this.useLive || !companyId) {
+      const products = await this.getProducts(companyId);
+      const exists = products.find(p => p.id === product.id);
+      const updated = exists ? products.map(p => p.id === product.id ? product : p) : [...products, product];
+      localStorage.setItem(`db_erp_products_${companyId || 'demo'}`, JSON.stringify(updated));
+      return;
+    }
     const { error } = await supabase.from('products').upsert({ 
       id: product.id, 
       name: product.name, 
@@ -245,11 +257,21 @@ class DataService {
       other_expenses: product.pricing.otherExpenses,
       company_id: companyId 
     });
-    if (!error) await this.logAction(companyId, "Stok Kartı Güncellendi", product.name);
+    if (error) {
+      console.error("Ürün kaydetme hatası:", error);
+      throw new Error("Ürün kaydedilemedi: " + error.message);
+    }
+    await this.logAction(companyId, "Stok Kartı Güncellendi", product.name);
   }
 
   async bulkUpsertProducts(products: Product[], companyId?: string): Promise<void> {
-    if (!this.useLive || !companyId || products.length === 0) return;
+    if (!companyId) return;
+    if (!this.useLive) {
+      const existing = await this.getProducts(companyId);
+      const updated = [...existing, ...products];
+      localStorage.setItem(`db_erp_products_${companyId}`, JSON.stringify(updated));
+      return;
+    }
     const payload = products.map(p => ({
       id: p.id,
       name: p.name,
@@ -266,7 +288,11 @@ class DataService {
       company_id: companyId
     }));
     const { error } = await supabase.from('products').upsert(payload);
-    if (!error) await this.logAction(companyId, "Toplu Stok Yükleme Yapıldı", `${products.length} ürün`);
+    if (error) {
+      console.error("Toplu ürün yükleme hatası:", error);
+      throw new Error("Toplu yükleme başarısız: " + error.message);
+    }
+    await this.logAction(companyId, "Toplu Stok Yükleme Yapıldı", `${products.length} ürün`);
   }
 
   async deleteProduct(id: string): Promise<void> {
