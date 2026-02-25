@@ -85,22 +85,27 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpsert, onBulkUpsert,
         const ws = wb.Sheets[wsname];
         const data = utils.sheet_to_json(ws) as any[];
 
-        const newProducts: Product[] = data.map(row => ({
-          id: Math.random().toString(36).substring(7),
-          sku: String(row['SKU'] || ''),
-          name: String(row['Ürün Adı'] || ''),
-          category: String(row['Kategori'] || categories[0] || 'Genel'),
-          unit: String(row['Birim'] || units[0] || 'Adet'),
-          stock: Number(row['Mevcut Stok'] || 0),
-          criticalThreshold: Number(row['Kritik Eşik'] || 10),
-          pricing: {
-            purchasePrice: Number(row['Alış Fiyatı'] || 0),
-            exchangeRate: Number(row['Döviz Kuru'] || 1),
-            vatRate: Number(row['KDV Oranı (%)'] || 20) / 100,
-            otherExpenses: Number(row['Ek Giderler'] || 0)
-          },
-          sellingPrice: Number(row['Satış Fiyatı'] || 0)
-        })).filter(p => p.sku && p.name);
+        const newProducts: Product[] = data.map(row => {
+          const sku = String(row['SKU'] || '');
+          const existing = products.find(p => p.sku === sku);
+          
+          return {
+            id: existing ? existing.id : Math.random().toString(36).substring(7),
+            sku: sku,
+            name: String(row['Ürün Adı'] || ''),
+            category: String(row['Kategori'] || categories[0] || 'Genel'),
+            unit: String(row['Birim'] || units[0] || 'Adet'),
+            stock: Number(row['Mevcut Stok'] || 0),
+            criticalThreshold: Number(row['Kritik Eşik'] || 10),
+            pricing: {
+              purchasePrice: Number(row['Alış Fiyatı'] || 0),
+              exchangeRate: Number(row['Döviz Kuru'] || 1),
+              vatRate: Number(row['KDV Oranı (%)'] || 20) / 100,
+              otherExpenses: Number(row['Ek Giderler'] || 0)
+            },
+            sellingPrice: Number(row['Satış Fiyatı'] || 0)
+          };
+        }).filter(p => p.sku && p.name);
 
         if (newProducts.length > 0) {
           onBulkUpsert(newProducts);
