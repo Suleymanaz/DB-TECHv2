@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { Product, UserRole } from '../types';
-import { CATEGORIES, UNITS } from '../constants';
 import { calculateUnitCost, formatCurrency, exportToCSV } from '../utils/helpers';
+import * as XLSX from 'xlsx';
 
 interface InventoryProps {
   products: Product[];
@@ -10,13 +10,16 @@ interface InventoryProps {
   onBulkUpsert: (products: Product[]) => void;
   onDelete: (id: string) => void;
   userRole: UserRole;
+  categories: string[];
+  units: string[];
 }
 
-const Inventory: React.FC<InventoryProps> = ({ products, onUpsert, onBulkUpsert, onDelete, userRole }) => {
+const Inventory: React.FC<InventoryProps> = ({ products, onUpsert, onBulkUpsert, onDelete, userRole, categories, units }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('All');
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN;
@@ -68,6 +71,76 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpsert, onBulkUpsert,
     exportToCSV(reportData, `Muhasebe_Stok_Raporu_${new Date().toISOString().split('T')[0]}`);
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+        const newProducts: Product[] = data.map(row => ({
+          id: Math.random().toString(36).substring(7),
+          sku: String(row['SKU'] || ''),
+          name: String(row['Ürün Adı'] || ''),
+          category: String(row['Kategori'] || categories[0] || 'Genel'),
+          unit: String(row['Birim'] || units[0] || 'Adet'),
+          stock: Number(row['Mevcut Stok'] || 0),
+          criticalThreshold: Number(row['Kritik Eşik'] || 10),
+          pricing: {
+            purchasePrice: Number(row['Alış Fiyatı'] || 0),
+            exchangeRate: Number(row['Döviz Kuru'] || 1),
+            vatRate: Number(row['KDV Oranı (%)'] || 20) / 100,
+            otherExpenses: Number(row['Ek Giderler'] || 0)
+          },
+          sellingPrice: Number(row['Satış Fiyatı'] || 0)
+        })).filter(p => p.sku && p.name);
+
+        if (newProducts.length > 0) {
+          onBulkUpsert(newProducts);
+          alert(`${newProducts.length} ürün başarıyla yüklendi.`);
+        } else {
+          alert('Geçerli veri bulunamadı. Lütfen formatı kontrol edin.');
+        }
+      } catch (err) {
+        console.error('Excel okuma hatası:', err);
+        alert('Dosya okunurken bir hata oluştu.');
+      } finally {
+        setIsImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const downloadTemplate = () => {
+    const templateData = [
+      {
+        'SKU': 'STOK001',
+        'Ürün Adı': 'Örnek Ürün',
+        'Kategori': categories[0] || 'Genel',
+        'Birim': units[0] || 'Adet',
+        'Mevcut Stok': 100,
+        'Kritik Eşik': 10,
+        'Alış Fiyatı': 10.50,
+        'Döviz Kuru': 1,
+        'KDV Oranı (%)': 20,
+        'Ek Giderler': 0,
+        'Satış Fiyatı': 25.00
+      }
+    ];
+    const ws = XLSX.utils.json_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "Stok_Yukleme_Sablonu.xlsx");
+  };
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -90,7 +163,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpsert, onBulkUpsert,
               onChange={(e) => setFilterCategory(e.target.value)}
             >
               <option value="All">Tüm Kategoriler</option>
-              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         </div>
@@ -102,9 +175,30 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpsert, onBulkUpsert,
         </div>
       </div>
 
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-4">
         <div className="flex space-x-2">
           <button onClick={generateStockReport} className="px-6 py-2.5 bg-slate-100 text-slate-700 font-bold rounded-xl shadow-sm hover:bg-slate-200 transition text-sm border border-slate-200">📊 Muhasebe Raporu Al</button>
+          {canEdit && (
+            <>
+              <button 
+                onClick={() => fileInputRef.current?.click()} 
+                disabled={isImporting}
+                className="px-6 py-2.5 bg-emerald-50 text-emerald-700 font-bold rounded-xl shadow-sm hover:bg-emerald-100 transition text-sm border border-emerald-200 disabled:opacity-50"
+              >
+                {isImporting ? '⌛ Yükleniyor...' : '📥 Excel\'den Yükle'}
+              </button>
+              <button onClick={downloadTemplate} className="px-4 py-2.5 text-slate-400 hover:text-slate-600 transition text-xs font-bold">
+                📄 Şablon İndir
+              </button>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileUpload} 
+                accept=".xlsx, .xls, .csv" 
+                className="hidden" 
+              />
+            </>
+          )}
         </div>
         {canEdit && (
           <button onClick={handleNew} className="px-8 py-2.5 bg-indigo-600 text-white font-black rounded-xl shadow-lg hover:bg-indigo-700 transition text-sm shadow-indigo-500/20 active:scale-95 transition-transform">+ Yeni Ürün Tanımla</button>
@@ -177,16 +271,16 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpsert, onBulkUpsert,
       </div>
 
       {showModal && canEdit && (
-        <ProductModal product={editingProduct} onClose={() => setShowModal(false)} onSave={onUpsert} />
+        <ProductModal product={editingProduct} onClose={() => setShowModal(false)} onSave={onUpsert} categories={categories} units={units} />
       )}
     </div>
   );
 };
 
-const ProductModal: React.FC<{ product: Product | null; onClose: () => void; onSave: (p: Product) => void }> = ({ product, onClose, onSave }) => {
+const ProductModal: React.FC<{ product: Product | null; onClose: () => void; onSave: (p: Product) => void; categories: string[]; units: string[] }> = ({ product, onClose, onSave, categories, units }) => {
   const [formData, setFormData] = useState<Partial<Product>>(
     product || {
-      name: '', sku: '', category: CATEGORIES[0], unit: UNITS[0], stock: 0, criticalThreshold: 10, sellingPrice: 0,
+      name: '', sku: '', category: categories[0] || 'Genel', unit: units[0] || 'Adet', stock: 0, criticalThreshold: 10, sellingPrice: 0,
       pricing: { purchasePrice: 0, vatRate: 0.20, exchangeRate: 1, otherExpenses: 0 }
     }
   );
@@ -197,7 +291,6 @@ const ProductModal: React.FC<{ product: Product | null; onClose: () => void; onS
     onClose();
   };
 
-  // Akıllı sayı değişikliği yönetimi
   const handleNumChange = (field: string, val: string, nestedField?: string) => {
     const num = val === '' ? 0 : parseFloat(val);
     if (nestedField) {
@@ -230,7 +323,8 @@ const ProductModal: React.FC<{ product: Product | null; onClose: () => void; onS
                     value={formData.unit}
                     onChange={e => setFormData({...formData, unit: e.target.value})}
                   >
-                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                    {units.map(u => <option key={u} value={u}>{u}</option>)}
+                    {units.length === 0 && <option value="Adet">Adet (Varsayılan)</option>}
                   </select>
                 </div>
               </div>
@@ -242,7 +336,8 @@ const ProductModal: React.FC<{ product: Product | null; onClose: () => void; onS
                     value={formData.category}
                     onChange={e => setFormData({...formData, category: e.target.value})}
                   >
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                    {categories.length === 0 && <option value="Genel">Genel (Varsayılan)</option>}
                   </select>
                 </div>
                 <div>
