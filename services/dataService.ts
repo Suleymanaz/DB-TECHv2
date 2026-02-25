@@ -1,10 +1,9 @@
+
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { Product, Contact, Transaction, User, UserRole, TransactionType, Tenant, AuditLog, ContactType, Expense } from '../types';
 
 class DataService {
   private useLive = isSupabaseConfigured();
-
-  // ... (Önceki metodlar aynı kalıyor)
 
   async getExpenses(companyId?: string): Promise<Expense[]> {
       if (!this.useLive || !companyId) return [];
@@ -41,7 +40,6 @@ class DataService {
       await this.logAction(companyId, "Gider Kaydı Silindi", `ID: ${id}`);
   }
 
-  // Mevcut metodların devamı...
   async logAction(companyId: string, action: string, details: string = '') {
     if (!this.useLive) return;
     try {
@@ -106,11 +104,6 @@ class DataService {
         if (error) return { user: null, error: error.message };
         if (data.user) {
           let { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
-          if (!profile && data.user.email === 'odabasisuleyman2015@gmail.com') {
-              const adminProfile = { id: data.user.id, full_name: 'Süleyman Odabaşı', role: 'DB_TECH_ADMIN', company_id: 'GLOBAL_HEAD', company_name: 'DB Tech Global' };
-              await supabase.from('profiles').upsert(adminProfile);
-              profile = adminProfile;
-          }
           if (profile) {
               await this.logAction(profile.company_id, "Sisteme Giriş Yapıldı");
               return { 
@@ -134,7 +127,35 @@ class DataService {
       if (!this.useLive) return [];
       const { data, error } = await supabase.from('tenants').select('*').neq('id', 'GLOBAL_HEAD');
       if (error) return [];
-      return data.map((t: any) => ({ id: t.id, name: t.name, status: t.status, createdAt: t.created_at }));
+      return data.map((t: any) => ({ 
+        id: t.id, 
+        name: t.name, 
+        status: t.status, 
+        createdAt: t.created_at,
+        categories: t.categories || [],
+        units: t.units || []
+      }));
+  }
+
+  async getTenant(tenantId: string): Promise<Tenant | null> {
+      if (!this.useLive) return null;
+      const { data, error } = await supabase.from('tenants').select('*').eq('id', tenantId).single();
+      if (error) return null;
+      return { 
+        id: data.id, 
+        name: data.name, 
+        status: data.status, 
+        createdAt: data.created_at,
+        categories: data.categories || [],
+        units: data.units || []
+      };
+  }
+
+  async updateTenantConfig(tenantId: string, categories: string[], units: string[]): Promise<boolean> {
+      if (!this.useLive) return false;
+      const { error } = await supabase.from('tenants').update({ categories, units }).eq('id', tenantId);
+      if (!error) await this.logAction(tenantId, "Şirket Konfigürasyonu Güncellendi", `Kategoriler: ${categories.length}, Birimler: ${units.length}`);
+      return !error;
   }
 
   async getUsersByTenant(tenantId: string): Promise<User[]> {
@@ -154,7 +175,13 @@ class DataService {
   async createTenantOnly(companyName: string): Promise<{ success: boolean, error: string | null }> {
     if (!this.useLive) return { success: false, error: "Bağlantı yok" };
     const companyId = Math.random().toString(36).substring(2, 10);
-    const { error } = await supabase.from('tenants').insert({ id: companyId, name: companyName, status: 'ACTIVE' });
+    const { error } = await supabase.from('tenants').insert({ 
+      id: companyId, 
+      name: companyName, 
+      status: 'ACTIVE',
+      categories: ['Genel Ürünler', 'Sarf Malzeme', 'Ticari Mal', 'Diğer'],
+      units: ['Adet', 'Metre', 'Kg', 'Paket', 'Litre']
+    });
     if (error) return { success: false, error: error.message };
     await this.logAction('GLOBAL_HEAD', "Yeni Şirket Oluşturuldu", companyName);
     return { success: true, error: null };
@@ -183,14 +210,63 @@ class DataService {
     if (!this.useLive || !companyId) return [];
     const { data, error } = await supabase.from('products').select('*').eq('company_id', companyId);
     if (error) return [];
-    return data.map((d: any) => ({ id: d.id, name: d.name, sku: d.sku, category: d.category, unit: d.unit, stock: Number(d.stock), criticalThreshold: Number(d.critical_threshold), pricing: typeof d.pricing === 'string' ? JSON.parse(d.pricing) : d.pricing, sellingPrice: Number(d.selling_price) }));
+    return data.map((d: any) => ({ 
+      id: d.id, 
+      name: d.name, 
+      sku: d.sku, 
+      category: d.category, 
+      unit: d.unit, 
+      stock: Number(d.stock), 
+      criticalThreshold: Number(d.critical_threshold), 
+      pricing: {
+        purchasePrice: Number(d.purchase_price || 0),
+        vatRate: Number(d.vat_rate || 0.20),
+        exchangeRate: Number(d.exchange_rate || 1),
+        otherExpenses: Number(d.other_expenses || 0)
+      }, 
+      sellingPrice: Number(d.selling_price) 
+    }));
   }
 
   async upsertProduct(product: Product, companyId?: string): Promise<void> {
     if (!this.useLive || !companyId) return;
-    // Fix: Using correct property names from Product interface (criticalThreshold and sellingPrice instead of snake_case)
-    const { error } = await supabase.from('products').upsert({ id: product.id, name: product.name, sku: product.sku, category: product.category, unit: product.unit, stock: product.stock, critical_threshold: product.criticalThreshold, selling_price: product.sellingPrice, pricing: product.pricing, company_id: companyId });
+    const { error } = await supabase.from('products').upsert({ 
+      id: product.id, 
+      name: product.name, 
+      sku: product.sku, 
+      category: product.category, 
+      unit: product.unit, 
+      stock: product.stock, 
+      critical_threshold: product.criticalThreshold, 
+      selling_price: product.sellingPrice, 
+      purchase_price: product.pricing.purchasePrice,
+      vat_rate: product.pricing.vatRate,
+      exchange_rate: product.pricing.exchangeRate,
+      other_expenses: product.pricing.otherExpenses,
+      company_id: companyId 
+    });
     if (!error) await this.logAction(companyId, "Stok Kartı Güncellendi", product.name);
+  }
+
+  async bulkUpsertProducts(products: Product[], companyId?: string): Promise<void> {
+    if (!this.useLive || !companyId || products.length === 0) return;
+    const payload = products.map(p => ({
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      category: p.category,
+      unit: p.unit,
+      stock: p.stock,
+      critical_threshold: p.criticalThreshold,
+      selling_price: p.sellingPrice,
+      purchase_price: p.pricing.purchasePrice,
+      vat_rate: p.pricing.vatRate,
+      exchange_rate: p.pricing.exchangeRate,
+      other_expenses: p.pricing.otherExpenses,
+      company_id: companyId
+    }));
+    const { error } = await supabase.from('products').upsert(payload);
+    if (!error) await this.logAction(companyId, "Toplu Stok Yükleme Yapıldı", `${products.length} ürün`);
   }
 
   async deleteProduct(id: string): Promise<void> {
@@ -204,23 +280,7 @@ class DataService {
       if (!this.useLive || !companyId) return [];
       const { data, error } = await supabase.from('contacts').select('*').eq('company_id', companyId);
       if (error) return [];
-
-      let contacts = data.map((c: any) => ({ id: c.id, name: c.name, type: c.type as ContactType, phone: c.phone, address: c.address }));
-      
-      const hasPerakende = contacts.some(c => c.name.toUpperCase().includes('PERAKENDE'));
-      if (!hasPerakende && contacts.length < 100) {
-          const defaultContact: Contact = { 
-            id: Math.random().toString(36).substring(7), 
-            name: 'HIZLI SATIŞ (PERAKENDE)', 
-            type: ContactType.CUSTOMER, 
-            phone: '-', 
-            address: 'Mağaza içi hızlı satış' 
-          };
-          await this.upsertContact(defaultContact, companyId);
-          contacts = [defaultContact, ...contacts];
-      }
-      
-      return contacts;
+      return data.map((c: any) => ({ id: c.id, name: c.name, type: c.type as ContactType, phone: c.phone, address: c.address }));
   }
 
   async upsertContact(contact: Contact, companyId?: string): Promise<void> {
