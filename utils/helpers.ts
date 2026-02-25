@@ -1,5 +1,5 @@
 
-import { Pricing, Product } from '../types';
+import { Pricing } from '../types';
 
 /**
  * BirimMaliyet = (AlisFiyati * DovizKuru) * (1 + KDV) + DigerGiderler
