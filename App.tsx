@@ -127,16 +127,40 @@ const App: React.FC = () => {
   }, [currentUser]);
 
   const upsertProduct = useCallback(async (product: Product) => {
-    setProducts(prev => {
-      const exists = prev.find(p => p.id === product.id);
-      return exists ? prev.map(p => p.id === product.id ? product : p) : [...prev, product];
-    });
-    await dataService.upsertProduct(product, currentUser?.companyId);
+    try {
+      setProducts(prev => {
+        const exists = prev.find(p => p.id === product.id);
+        return exists ? prev.map(p => p.id === product.id ? product : p) : [...prev, product];
+      });
+      await dataService.upsertProduct(product, currentUser?.companyId);
+    } catch (err: any) {
+      alert("Hata: Ürün kaydedilemedi. " + err.message);
+      const fetchedProducts = await dataService.getProducts(currentUser?.companyId);
+      setProducts(fetchedProducts);
+    }
   }, [currentUser]);
 
   const bulkUpsertProducts = useCallback(async (newProducts: Product[]) => {
-    setProducts(prev => [...prev, ...newProducts]); 
-    await dataService.bulkUpsertProducts(newProducts, currentUser?.companyId);
+    try {
+      setProducts(prev => {
+        const updated = [...prev];
+        newProducts.forEach(newP => {
+          const idx = updated.findIndex(p => p.id === newP.id);
+          if (idx !== -1) {
+            updated[idx] = newP;
+          } else {
+            updated.push(newP);
+          }
+        });
+        return updated;
+      });
+      await dataService.bulkUpsertProducts(newProducts, currentUser?.companyId);
+    } catch (err: any) {
+      alert("Hata: Veriler kaydedilemedi. " + err.message);
+      // Rollback local state if needed, but usually better to let user know
+      const fetchedProducts = await dataService.getProducts(currentUser?.companyId);
+      setProducts(fetchedProducts);
+    }
   }, [currentUser]);
 
   const deleteProduct = useCallback(async (id: string) => {
