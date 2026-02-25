@@ -2,7 +2,7 @@
 import React from 'react';
 import { Product, Transaction, TransactionType } from '../types';
 import { calculateUnitCost, formatCurrency } from '../utils/helpers';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
+import { Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 
 interface DashboardProps {
   products: Product[];
@@ -110,7 +110,7 @@ const Dashboard: React.FC<DashboardProps> = ({ products, transactions }) => {
                   dataKey="value"
                   label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}
                 >
-                  {categoryData.map((entry: any, index: number) => (
+                  {categoryData.map((_: any, index: number) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
