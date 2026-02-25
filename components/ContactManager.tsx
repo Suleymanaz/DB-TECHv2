@@ -13,8 +13,6 @@ const ContactManager: React.FC<ContactManagerProps> = ({ contacts, onUpsert, onD
   const [showModal, setShowModal] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
 
-  const canManage = userRole === UserRole.ADMIN || userRole === UserRole.PURCHASE || userRole === UserRole.SALES;
-
   // Filter contacts based on role
   const filteredContacts = contacts.filter(c => {
     if (userRole === UserRole.PURCHASE) return c.type === ContactType.SUPPLIER;
