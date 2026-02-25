@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Product, Transaction, Contact, ContactType, TransactionType, User, UserRole, Expense } from './types';
+import { Product, Transaction, Contact, ContactType, TransactionType, User, UserRole, Expense, Tenant } from './types';
 import Dashboard from './components/Dashboard';
 import Inventory from './components/Inventory';
 import Transactions from './components/Transactions';
@@ -12,18 +12,20 @@ import Login from './components/Login';
 import SaaSManager from './components/SaaSManager';
 import ExpenseManager from './components/ExpenseManager';
 import FinancialReports from './components/FinancialReports';
+import Settings from './components/Settings';
 import { dataService } from './services/dataService';
 import { isSupabaseConfigured } from './lib/supabaseClient';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'purchases' | 'sales' | 'transactions' | 'contacts' | 'saas' | 'expenses' | 'finance'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'purchases' | 'sales' | 'transactions' | 'contacts' | 'saas' | 'expenses' | 'finance' | 'settings'>('dashboard');
   
   const [originalAdmin, setOriginalAdmin] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
 
   useEffect(() => {
@@ -43,11 +45,13 @@ const App: React.FC = () => {
       const fetchData = async () => {
         setIsLoadingData(true);
         try {
+          const tenant = await dataService.getTenant(currentUser.companyId!);
           const fetchedProducts = await dataService.getProducts(currentUser.companyId);
           const fetchedContacts = await dataService.getContacts(currentUser.companyId);
           const fetchedTransactions = await dataService.getTransactions(currentUser.companyId);
           const fetchedExpenses = await dataService.getExpenses(currentUser.companyId);
           
+          setCurrentTenant(tenant);
           setProducts(fetchedProducts);
           setContacts(fetchedContacts);
           setTransactions(fetchedTransactions);
@@ -66,6 +70,15 @@ const App: React.FC = () => {
       fetchData();
     }
   }, [currentUser, originalAdmin]);
+
+  const handleUpdateTenantConfig = async (categories: string[], units: string[]): Promise<boolean> => {
+      if (!currentUser?.companyId) return false;
+      const success = await dataService.updateTenantConfig(currentUser.companyId, categories, units);
+      if (success) {
+          setCurrentTenant(prev => prev ? { ...prev, categories, units } : null);
+      }
+      return success;
+  };
 
   const handleAddExpense = async (expense: Expense) => {
       setExpenses(prev => [expense, ...prev]);
@@ -123,9 +136,7 @@ const App: React.FC = () => {
 
   const bulkUpsertProducts = useCallback(async (newProducts: Product[]) => {
     setProducts(prev => [...prev, ...newProducts]); 
-    for (const p of newProducts) {
-        await dataService.upsertProduct(p, currentUser?.companyId);
-    }
+    await dataService.bulkUpsertProducts(newProducts, currentUser?.companyId);
   }, [currentUser]);
 
   const deleteProduct = useCallback(async (id: string) => {
@@ -196,6 +207,7 @@ const App: React.FC = () => {
               {activeTab === 'contacts' && 'Müşteri & Tedarikçi Rehberi'}
               {activeTab === 'expenses' && 'İşletme Gider Yönetimi'}
               {activeTab === 'finance' && 'Mali Tablolar & Analiz'}
+              {activeTab === 'settings' && 'Şirket Yapılandırması'}
             </h1>
             {isSupabaseConfigured() && currentUser.companyId && (
                <span className="text-[10px] bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full ml-4 font-black tracking-widest uppercase">
@@ -224,7 +236,15 @@ const App: React.FC = () => {
             <Dashboard products={products} transactions={transactions} />
           )}
           {activeTab === 'inventory' && (
-            <Inventory products={products} onUpsert={upsertProduct} onBulkUpsert={bulkUpsertProducts} onDelete={deleteProduct} userRole={currentUser.role} />
+            <Inventory 
+              products={products} 
+              onUpsert={upsertProduct} 
+              onBulkUpsert={bulkUpsertProducts} 
+              onDelete={deleteProduct} 
+              userRole={currentUser.role} 
+              categories={currentTenant?.categories || []}
+              units={currentTenant?.units || []}
+            />
           )}
           {activeTab === 'purchases' && (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.PURCHASE || currentUser.role === UserRole.SUPER_ADMIN) && (
             <PurchaseModule products={products} contacts={contacts.filter(c => c.type === ContactType.SUPPLIER)} onAddTransaction={addTransaction} />
@@ -243,6 +263,9 @@ const App: React.FC = () => {
           )}
           {activeTab === 'finance' && (
             <FinancialReports transactions={transactions} expenses={expenses} />
+          )}
+          {activeTab === 'settings' && (
+              <Settings tenant={currentTenant!} onUpdate={handleUpdateTenantConfig} />
           )}
         </div>
       </main>
