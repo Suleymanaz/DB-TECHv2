@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { dataService } from '../services/dataService';
 import { Tenant, User, UserRole, AuditLog } from '../types';
-import { exportToCSV } from '../utils/helpers';
 
 interface SaaSManagerProps {
   onImpersonate: (user: User) => void;
@@ -12,7 +11,7 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
-  const [detailTab, setDetailTab] = useState<'users' | 'logs'>('users');
+  const [detailTab, setDetailTab] = useState<'users' | 'logs' | 'config'>('users');
   
   const [tenantUsers, setTenantUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -20,6 +19,11 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [loadingLogs, setLoadingLogs] = useState(false);
   const [logFilter, setLogFilter] = useState({ start: '', end: '' });
+
+  // Config State
+  const [tempCategories, setTempCategories] = useState<string[]>([]);
+  const [tempUnits, setTempUnits] = useState<string[]>([]);
+  const [newVal, setNewVal] = useState('');
 
   // Modals
   const [showCompanyModal, setShowCompanyModal] = useState(false);
@@ -41,8 +45,12 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
     if (selectedTenant) {
         if (detailTab === 'users') loadTenantUsers(selectedTenant.id);
         if (detailTab === 'logs') loadAuditLogs(selectedTenant.id);
+        if (detailTab === 'config') {
+            setTempCategories(selectedTenant.categories || []);
+            setTempUnits(selectedTenant.units || []);
+        }
     }
-  }, [selectedTenant, detailTab, logFilter]);
+  }, [selectedTenant, detailTab]);
 
   const loadTenants = async () => {
     setLoading(true);
@@ -65,9 +73,13 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
     setLoadingLogs(false);
   };
 
-  const handleExportLogs = () => {
-    if (auditLogs.length === 0) return alert('Dışa aktarılacak kayıt yok.');
-    exportToCSV(auditLogs, `Log_Raporu_${selectedTenant?.name}_${new Date().toISOString().split('T')[0]}`);
+  const handleSaveConfig = async () => {
+      if (!selectedTenant) return;
+      const success = await dataService.updateTenantConfig(selectedTenant.id, tempCategories, tempUnits);
+      if (success) {
+          alert('Şirket ayarları güncellendi.');
+          loadTenants();
+      }
   };
 
   const handleUpdateRole = async (user: User, newRole: UserRole) => {
@@ -143,21 +155,20 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
                         <h2 className="text-3xl font-black text-slate-800">{selectedTenant.name}</h2>
                         <div className="flex bg-slate-200 p-1 rounded-xl mt-4 w-fit">
                             <button onClick={() => setDetailTab('users')} className={`px-6 py-2 rounded-lg text-xs font-bold transition ${detailTab === 'users' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>PERSONELLER</button>
+                            <button onClick={() => setDetailTab('config')} className={`px-6 py-2 rounded-lg text-xs font-bold transition ${detailTab === 'config' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>YAPILANDIRMA</button>
                             <button onClick={() => setDetailTab('logs')} className={`px-6 py-2 rounded-lg text-xs font-bold transition ${detailTab === 'logs' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>LOG KAYITLARI</button>
                         </div>
                     </div>
                     {detailTab === 'users' && (
                         <button onClick={() => setShowUserModal(true)} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition">+ Personel Ekle</button>
                     )}
-                    {detailTab === 'logs' && (
-                        <button onClick={handleExportLogs} className="px-6 py-3 bg-slate-800 text-white font-bold rounded-xl shadow-lg hover:bg-slate-900 transition flex items-center">
-                           <span className="mr-2">📊</span> CSV Rapor Al
-                        </button>
+                    {detailTab === 'config' && (
+                        <button onClick={handleSaveConfig} className="px-6 py-3 bg-green-600 text-white font-bold rounded-xl shadow-lg hover:bg-green-700 transition">Ayarları Kaydet</button>
                     )}
                 </div>
 
                 <div className="p-8">
-                    {detailTab === 'users' ? (
+                    {detailTab === 'users' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {loadingUsers ? <div className="col-span-full py-10 text-center text-slate-400">Yükleniyor...</div> : tenantUsers.map(u => (
                                 <div key={u.id} className="bg-white border border-gray-100 p-6 rounded-2xl shadow-sm hover:shadow-md transition">
@@ -181,7 +192,41 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
                                 </div>
                             ))}
                         </div>
-                    ) : (
+                    )}
+
+                    {detailTab === 'config' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                            <div className="space-y-6">
+                                <h3 className="font-bold text-slate-800 flex items-center">🏷️ Kategori Tanımları</h3>
+                                <div className="flex gap-2">
+                                    <input className="flex-1 p-3 border rounded-xl" placeholder="Ekle..." value={newVal} onChange={e => setNewVal(e.target.value)} />
+                                    <button onClick={() => { if(newVal) {setTempCategories([...tempCategories, newVal]); setNewVal('');} }} className="bg-indigo-600 text-white px-4 rounded-xl">+</button>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {tempCategories.map((c, i) => (
+                                        <div key={i} className="px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-bold flex items-center">
+                                            {c} <button onClick={() => setTempCategories(tempCategories.filter((_, idx) => idx !== i))} className="ml-2 text-red-400">✕</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="space-y-6">
+                                <h3 className="font-bold text-slate-800 flex items-center">📏 Birim Tanımları</h3>
+                                <div className="flex gap-2">
+                                    <input className="flex-1 p-3 border rounded-xl" placeholder="Ekle..." onKeyPress={e => { if(e.key === 'Enter') { setTempUnits([...tempUnits, (e.target as HTMLInputElement).value]); (e.target as HTMLInputElement).value = ''; } }} />
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {tempUnits.map((u, i) => (
+                                        <div key={i} className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold flex items-center">
+                                            {u} <button onClick={() => setTempUnits(tempUnits.filter((_, idx) => idx !== i))} className="ml-2 text-red-400">✕</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {detailTab === 'logs' && (
                         <div className="space-y-6">
                             <div className="flex flex-wrap gap-4 items-end bg-slate-50 p-6 rounded-2xl border border-slate-100">
                                 <div className="flex-1 min-w-[200px]">
