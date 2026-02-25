@@ -7,7 +7,7 @@ interface SettingsProps {
   onUpdate: (categories: string[], units: string[]) => Promise<boolean>;
 }
 
-const CompanySettings: React.FC<SettingsProps> = ({ tenant, onUpdate }) => {
+const AppSettings: React.FC<SettingsProps> = ({ tenant, onUpdate }) => {
   const [categories, setCategories] = useState<string[]>(tenant.categories || []);
   const [units, setUnits] = useState<string[]>(tenant.units || []);
   const [newCat, setNewCat] = useState('');
@@ -120,4 +120,4 @@ const CompanySettings: React.FC<SettingsProps> = ({ tenant, onUpdate }) => {
   );
 };
 
-export default CompanySettings;
+export default AppSettings;
