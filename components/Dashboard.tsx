@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Product, Transaction, TransactionType } from '../types';
-import { calculateUnitCost, formatCurrency } from '../utils/helpers';
+import { formatCurrency } from '../utils/helpers';
 import { Tooltip, ResponsiveContainer, Cell, PieChart, Pie } from 'recharts';
 
 interface DashboardProps {
@@ -11,7 +11,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ products, transactions }) => {
   const criticalProducts = products.filter(p => p.stock <= p.criticalThreshold);
-  const totalStockValue = products.reduce((acc, p) => acc + (p.stock * calculateUnitCost(p.pricing)), 0);
+  const totalStockValue = products.reduce((acc, p) => acc + (p.stock * p.pricing.purchasePrice * p.pricing.exchangeRate), 0);
   
   const lastMonthTxs = transactions.slice(0, 5);
 
@@ -55,7 +55,7 @@ const Dashboard: React.FC<DashboardProps> = ({ products, transactions }) => {
             <span className="p-2 bg-green-50 text-green-600 rounded-lg">💰</span>
           </div>
           <p className="text-2xl font-bold text-gray-800 truncate">{formatCurrency(totalStockValue)}</p>
-          <p className="text-xs text-green-500 mt-2">Maliyet bazlı değerleme</p>
+          <p className="text-xs text-green-500 mt-2">Muhasebe Değeri (KDV Hariç)</p>
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
