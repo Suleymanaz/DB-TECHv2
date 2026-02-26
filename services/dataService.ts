@@ -6,7 +6,10 @@ class DataService {
   private useLive = isSupabaseConfigured();
 
   async getExpenses(companyId?: string): Promise<Expense[]> {
-      if (!this.useLive || !companyId) return [];
+      if (!this.useLive || !companyId) {
+          const local = localStorage.getItem(`db_erp_expenses_${companyId || 'demo'}`);
+          return local ? JSON.parse(local) : [];
+      }
       const { data, error } = await supabase.from('expenses').select('*').eq('company_id', companyId).order('date', { ascending: false });
       if (error) return [];
       return data.map((e: any) => ({
@@ -21,7 +24,11 @@ class DataService {
   }
 
   async saveExpense(expense: Expense): Promise<void> {
-      if (!this.useLive) return;
+      if (!this.useLive) {
+          const expenses = await this.getExpenses(expense.companyId);
+          localStorage.setItem(`db_erp_expenses_${expense.companyId}`, JSON.stringify([expense, ...expenses]));
+          return;
+      }
       const { error } = await supabase.from('expenses').insert({
           id: expense.id,
           company_id: expense.companyId,
@@ -35,7 +42,11 @@ class DataService {
   }
 
   async deleteExpense(id: string, companyId: string): Promise<void> {
-      if (!this.useLive) return;
+      if (!this.useLive) {
+          const expenses = await this.getExpenses(companyId);
+          localStorage.setItem(`db_erp_expenses_${companyId}`, JSON.stringify(expenses.filter(e => e.id !== id)));
+          return;
+      }
       await supabase.from('expenses').delete().eq('id', id);
       await this.logAction(companyId, "Gider Kaydı Silindi", `ID: ${id}`);
   }
@@ -98,7 +109,22 @@ class DataService {
   }
 
   async login(username: string, password: string): Promise<{ user: User | null, error: string | null }> {
-    if (!this.useLive) return { user: null, error: "Giriş sadece canlı modda aktiftir." };
+    if (!this.useLive) {
+        if (username === 'admin' && password === 'admin') {
+            return {
+                user: {
+                    id: 'demo-user',
+                    name: 'Demo Yönetici',
+                    username: 'admin',
+                    role: UserRole.ADMIN,
+                    companyId: 'demo-company',
+                    companyName: 'Demo Şirket'
+                },
+                error: null
+            };
+        }
+        return { user: null, error: "Demo girişi için admin/admin kullanın." };
+    }
     try {
         const { data, error } = await supabase.auth.signInWithPassword({ email: username, password });
         if (error) return { user: null, error: error.message };
@@ -138,7 +164,18 @@ class DataService {
   }
 
   async getTenant(tenantId: string): Promise<Tenant | null> {
-      if (!this.useLive) return null;
+      if (!this.useLive) {
+          const local = localStorage.getItem(`db_erp_tenant_${tenantId}`);
+          if (local) return JSON.parse(local);
+          return {
+              id: tenantId,
+              name: 'Demo Şirket',
+              status: 'ACTIVE',
+              createdAt: new Date().toISOString(),
+              categories: ['Genel Ürünler', 'Sarf Malzeme', 'Ticari Mal', 'Diğer'],
+              units: ['Adet', 'Metre', 'Kg', 'Paket', 'Litre']
+          };
+      }
       const { data, error } = await supabase.from('tenants').select('*').eq('id', tenantId).single();
       if (error) return null;
       return { 
@@ -152,7 +189,15 @@ class DataService {
   }
 
   async updateTenantConfig(tenantId: string, categories: string[], units: string[]): Promise<boolean> {
-      if (!this.useLive) return false;
+      if (!this.useLive) {
+          const tenant = await this.getTenant(tenantId);
+          if (tenant) {
+              const updated = { ...tenant, categories, units };
+              localStorage.setItem(`db_erp_tenant_${tenantId}`, JSON.stringify(updated));
+              return true;
+          }
+          return false;
+      }
       const { error } = await supabase.from('tenants').update({ categories, units }).eq('id', tenantId);
       if (!error) await this.logAction(tenantId, "Şirket Konfigürasyonu Güncellendi", `Kategoriler: ${categories.length}, Birimler: ${units.length}`);
       return !error;
@@ -303,27 +348,47 @@ class DataService {
   }
 
   async getContacts(companyId?: string): Promise<Contact[]> {
-      if (!this.useLive || !companyId) return [];
+      if (!this.useLive || !companyId) {
+          const local = localStorage.getItem(`db_erp_contacts_${companyId || 'demo'}`);
+          return local ? JSON.parse(local) : [];
+      }
       const { data, error } = await supabase.from('contacts').select('*').eq('company_id', companyId);
       if (error) return [];
       return data.map((c: any) => ({ id: c.id, name: c.name, type: c.type as ContactType, phone: c.phone, address: c.address }));
   }
 
   async upsertContact(contact: Contact, companyId?: string): Promise<void> {
-      if (!this.useLive || !companyId) return;
+      if (!this.useLive || !companyId) {
+          const contacts = await this.getContacts(companyId);
+          const exists = contacts.find(c => c.id === contact.id);
+          const updated = exists ? contacts.map(c => c.id === contact.id ? contact : c) : [...contacts, contact];
+          localStorage.setItem(`db_erp_contacts_${companyId || 'demo'}`, JSON.stringify(updated));
+          return;
+      }
       await supabase.from('contacts').upsert({ id: contact.id, name: contact.name, type: contact.type, phone: contact.phone, address: contact.address, company_id: companyId });
       await this.logAction(companyId, "Cari Kart Güncellendi", contact.name);
   }
 
   async deleteContact(id: string): Promise<void> {
-      if (!this.useLive) return;
+      if (!this.useLive) {
+          // Note: companyId is not passed here, so we'd need to handle it differently or assume demo
+          const localKeys = Object.keys(localStorage).filter(k => k.startsWith('db_erp_contacts_'));
+          localKeys.forEach(key => {
+              const contacts = JSON.parse(localStorage.getItem(key) || '[]');
+              localStorage.setItem(key, JSON.stringify(contacts.filter((c: any) => c.id !== id)));
+          });
+          return;
+      }
       const { data: contact } = await supabase.from('contacts').select('name, company_id').eq('id', id).single();
       const { error } = await supabase.from('contacts').delete().eq('id', id);
       if (!error && contact) await this.logAction(contact.company_id, "Cari Kart Silindi", contact.name);
   }
 
   async getTransactions(companyId?: string): Promise<Transaction[]> {
-      if (!this.useLive || !companyId) return [];
+      if (!this.useLive || !companyId) {
+          const local = localStorage.getItem(`db_erp_transactions_${companyId || 'demo'}`);
+          return local ? JSON.parse(local) : [];
+      }
       const { data, error } = await supabase.from('transactions').select('*').eq('company_id', companyId).order('date', { ascending: false });
       if (error) return [];
       return data.map((t: any) => ({ 
@@ -342,7 +407,11 @@ class DataService {
   }
 
   async saveTransaction(tx: Transaction, companyId?: string): Promise<void> {
-      if (!this.useLive || !companyId) return;
+      if (!this.useLive || !companyId) {
+          const transactions = await this.getTransactions(companyId);
+          localStorage.setItem(`db_erp_transactions_${companyId || 'demo'}`, JSON.stringify([tx, ...transactions]));
+          return;
+      }
       const { error } = await supabase.from('transactions').insert({ 
         id: tx.id, 
         company_id: companyId, 
