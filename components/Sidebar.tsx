@@ -3,7 +3,7 @@ import React from 'react';
 import { UserRole } from '../types';
 
 interface SidebarProps {
-  activeTab: 'dashboard' | 'inventory' | 'purchases' | 'sales' | 'transactions' | 'contacts' | 'saas' | 'expenses' | 'finance';
+  activeTab: 'dashboard' | 'inventory' | 'purchases' | 'sales' | 'transactions' | 'contacts' | 'saas' | 'expenses' | 'finance' | 'settings';
   setActiveTab: (tab: any) => void;
   userRole: UserRole;
   onLogout: () => void;
@@ -26,6 +26,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, userRole, on
     { id: 'expenses', label: 'Masraflar', icon: '🧾', roles: [UserRole.ADMIN, UserRole.PURCHASE, UserRole.SUPER_ADMIN] },
     { id: 'transactions', label: 'İşlem Geçmişi', icon: '📜', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
     { id: 'finance', label: 'Mali Tablo', icon: '📊', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
+    { id: 'settings', label: 'Ayarlar', icon: '⚙️', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
   ];
 
   let displayItems = [];
@@ -37,7 +38,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, userRole, on
   }
 
   return (
-    <div className={`w-20 md:w-64 text-white flex flex-col transition-all duration-300 shrink-0 border-r border-slate-900 ${isImpersonating ? 'bg-orange-950' : 'bg-slate-950'}`}>
+    <div className={`w-20 md:w-64 text-white flex flex-col transition-all duration-300 shrink-0 border-r border-slate-900 sticky top-0 h-screen z-20 ${isImpersonating ? 'bg-orange-950' : 'bg-slate-950'}`}>
       <div className="p-6 flex items-center space-x-3 mb-6">
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl shadow-lg border ${isImpersonating ? 'bg-orange-600 border-orange-400' : 'bg-indigo-600 border-indigo-400/20'}`}>
             {isImpersonating ? '👁️' : 'DB'}
