@@ -12,6 +12,7 @@ interface PurchaseModuleProps {
 const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onAddTransaction }) => {
   const [cart, setCart] = useState<TransactionItem[]>([]);
   const [selectedProductId, setSelectedProductId] = useState('');
+  const [productSearch, setProductSearch] = useState('');
   const [selectedContactId, setSelectedContactId] = useState('');
   const [qty, setQty] = useState(1);
   const [isReturn, setIsReturn] = useState(false);
@@ -33,6 +34,7 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
     }
     setQty(1);
     setSelectedProductId('');
+    setProductSearch('');
   };
 
   const removeFromCart = (index: number) => {
@@ -87,16 +89,31 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 space-y-2">
               <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Ürün Kartı Seçin</label>
-              <select 
-                className="w-full p-4 rounded-xl bg-gray-50 border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
-                value={selectedProductId}
-                onChange={e => setSelectedProductId(e.target.value)}
-              >
-                <option value="">Stok seçiniz...</option>
-                {products.map(p => <option key={p.id} value={p.id}>{p.name} (SKU: {p.sku})</option>)}
-              </select>
+              <div className="relative">
+                <input 
+                  type="text"
+                  placeholder="Ürün ara (Ad veya SKU)..."
+                  className="w-full p-3 mb-2 rounded-xl bg-gray-50 border border-gray-100 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={productSearch}
+                  onChange={e => setProductSearch(e.target.value)}
+                />
+                <select 
+                  className="w-full p-4 rounded-xl bg-gray-50 border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+                  value={selectedProductId}
+                  onChange={e => setSelectedProductId(e.target.value)}
+                >
+                  <option value="">Stok seçiniz...</option>
+                  {products
+                    .filter(p => 
+                      p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
+                      p.sku.toLowerCase().includes(productSearch.toLowerCase())
+                    )
+                    .map(p => <option key={p.id} value={p.id}>{p.name} (SKU: {p.sku})</option>)
+                  }
+                </select>
+              </div>
             </div>
             <div>
               <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Miktar</label>
