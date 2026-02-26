@@ -12,6 +12,7 @@ interface SalesModuleProps {
 const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTransaction }) => {
   const [cart, setCart] = useState<TransactionItem[]>([]);
   const [selectedProductId, setSelectedProductId] = useState('');
+  const [productSearch, setProductSearch] = useState('');
   const [selectedContactId, setSelectedContactId] = useState('');
   const [qty, setQty] = useState(1);
   const [discount, setDiscount] = useState(0); 
@@ -56,6 +57,7 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
     setQty(1);
     setDiscount(0);
     setSelectedProductId('');
+    setProductSearch('');
   };
 
   const addLaborToCart = () => {
@@ -117,16 +119,31 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
           <h3 className="text-lg font-bold mb-4 flex items-center"><span className="mr-2 text-blue-500">📦</span> Ürün Seçimi</h3>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 space-y-2">
               <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Malzeme / Ürün</label>
-              <select 
-                className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer" 
-                value={selectedProductId} 
-                onChange={e => { setSelectedProductId(e.target.value); setDiscount(0); }}
-              >
-                <option value="">Seçiniz...</option>
-                {products.map(p => <option key={p.id} value={p.id} disabled={p.stock <= 0}>{p.name} ({p.stock} {p.unit})</option>)}
-              </select>
+              <div className="relative">
+                <input 
+                  type="text"
+                  placeholder="Ürün ara (Ad veya SKU)..."
+                  className="w-full p-3 mb-2 rounded-xl bg-gray-50 border border-gray-100 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={productSearch}
+                  onChange={e => setProductSearch(e.target.value)}
+                />
+                <select 
+                  className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer" 
+                  value={selectedProductId} 
+                  onChange={e => { setSelectedProductId(e.target.value); setDiscount(0); }}
+                >
+                  <option value="">Seçiniz...</option>
+                  {products
+                    .filter(p => 
+                      p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
+                      p.sku.toLowerCase().includes(productSearch.toLowerCase())
+                    )
+                    .map(p => <option key={p.id} value={p.id} disabled={p.stock <= 0}>{p.name} ({p.stock} {p.unit})</option>)
+                  }
+                </select>
+              </div>
             </div>
             <div>
               <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Miktar</label>
