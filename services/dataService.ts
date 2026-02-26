@@ -198,9 +198,26 @@ class DataService {
           }
           return false;
       }
-      const { error } = await supabase.from('tenants').update({ categories, units }).eq('id', tenantId);
-      if (!error) await this.logAction(tenantId, "Şirket Konfigürasyonu Güncellendi", `Kategoriler: ${categories.length}, Birimler: ${units.length}`);
-      return !error;
+      const { data, error } = await supabase
+          .from('tenants')
+          .update({ categories, units })
+          .eq('id', tenantId)
+          .select();
+
+      if (error) {
+          console.error("Şirket ayarları güncellenirken hata oluştu:", error.message);
+          alert("Veritabanı Hatası: " + error.message);
+          return false;
+      }
+
+      if (!data || data.length === 0) {
+          console.warn("Güncelleme yapılacak satır bulunamadı veya yetki yetersiz.");
+          alert("Güncelleme başarısız: Kayıt bulunamadı veya bu işlemi yapmaya yetkiniz yok (RLS Politikası).\n\nLütfen SQL politikalarını uyguladığınızdan emin olun.");
+          return false;
+      }
+
+      await this.logAction(tenantId, "Şirket Konfigürasyonu Güncellendi", `Kategoriler: ${categories.length}, Birimler: ${units.length}`);
+      return true;
   }
 
   async getUsersByTenant(tenantId: string): Promise<User[]> {
