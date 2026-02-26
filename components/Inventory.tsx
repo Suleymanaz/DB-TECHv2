@@ -147,7 +147,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpsert, onBulkUpsert,
   };
 
   return (
-    <div className="space-y-6">
+    <div className="h-[calc(100vh-40px)] flex flex-col space-y-6 overflow-hidden p-1">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex flex-1 items-center space-x-3 bg-white px-4 py-3 rounded-2xl border border-gray-200 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 transition">
@@ -210,11 +210,12 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpsert, onBulkUpsert,
         )}
       </div>
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="overflow-x-auto overflow-y-auto flex-1 custom-scrollbar">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-gray-50/50 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b">
+              <thead className="sticky top-0 z-10 bg-gray-50">
+                <tr className="text-[10px] font-black uppercase tracking-widest text-gray-400 border-b">
                 <th className="py-5 px-6">SKU / Kategori</th>
                 <th className="py-5 px-6">Ürün Tanımı</th>
                 <th className="py-5 px-6">Stok</th>
