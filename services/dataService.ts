@@ -427,6 +427,38 @@ class DataService {
       if (!this.useLive || !companyId) {
           const transactions = await this.getTransactions(companyId);
           localStorage.setItem(`db_erp_transactions_${companyId || 'demo'}`, JSON.stringify([tx, ...transactions]));
+          
+          // Update local products stock and price
+          const products = await this.getProducts(companyId);
+          const updatedProducts = products.map(p => {
+              const item = tx.items.find(it => it.productId === p.id);
+              if (item && !item.isLabor) {
+                  const change = tx.type === TransactionType.IN ? item.quantity : -item.quantity;
+                  const newStock = p.stock + change;
+                  let newPurchasePrice = p.pricing.purchasePrice;
+
+                  if (tx.type === TransactionType.IN && !tx.isReturn && item.newPurchasePrice !== undefined) {
+                      const currentStock = Math.max(0, p.stock);
+                      const currentPrice = p.pricing.purchasePrice;
+                      const newQty = item.quantity;
+                      const addedPrice = item.newPurchasePrice;
+                      
+                      if (currentStock + newQty > 0) {
+                          newPurchasePrice = ((currentStock * currentPrice) + (newQty * addedPrice)) / (currentStock + newQty);
+                      } else {
+                          newPurchasePrice = addedPrice;
+                      }
+                  }
+
+                  return { 
+                      ...p, 
+                      stock: newStock,
+                      pricing: { ...p.pricing, purchasePrice: newPurchasePrice }
+                  };
+              }
+              return p;
+          });
+          localStorage.setItem(`db_erp_products_${companyId || 'demo'}`, JSON.stringify(updatedProducts));
           return;
       }
       const { error } = await supabase.from('transactions').insert({ 
@@ -447,10 +479,29 @@ class DataService {
           await this.logAction(companyId, tx.isReturn ? "İade İşlemi" : (tx.type === TransactionType.IN ? "Mal Alımı" : "Satış İşlemi"), `Tutar: ${tx.totalAmount} TL`);
           for (const item of tx.items) {
               if (!item.isLabor && item.productId) {
-                  const { data: prod } = await supabase.from('products').select('stock').eq('id', item.productId).single();
+                  const { data: prod } = await supabase.from('products').select('*').eq('id', item.productId).single();
                   if (prod) {
                       const change = tx.type === TransactionType.IN ? item.quantity : -item.quantity;
-                      await supabase.from('products').update({ stock: Number(prod.stock) + change }).eq('id', item.productId);
+                      const newStock = Number(prod.stock) + change;
+                      
+                      let updateData: any = { stock: newStock };
+                      
+                      // Weighted Average Calculation for Purchases
+                      if (tx.type === TransactionType.IN && !tx.isReturn && item.newPurchasePrice !== undefined) {
+                          const currentStock = Math.max(0, Number(prod.stock));
+                          const currentPrice = Number(prod.purchase_price || 0);
+                          const newQty = item.quantity;
+                          const newPrice = item.newPurchasePrice;
+                          
+                          if (currentStock + newQty > 0) {
+                              const weightedAverage = ((currentStock * currentPrice) + (newQty * newPrice)) / (currentStock + newQty);
+                              updateData.purchase_price = weightedAverage;
+                          } else {
+                              updateData.purchase_price = newPrice;
+                          }
+                      }
+                      
+                      await supabase.from('products').update(updateData).eq('id', item.productId);
                   }
               }
           }
