@@ -17,7 +17,14 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
   const [qty, setQty] = useState(1);
   const [isReturn, setIsReturn] = useState(false);
   const [showProductList, setShowProductList] = useState(false);
+  const [purchasePrice, setPurchasePrice] = useState(0);
   const productListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (product) {
+      setPurchasePrice(product.pricing.purchasePrice);
+    }
+  }, [selectedProductId]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -38,15 +45,26 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
 
   const addToCart = () => {
     if (!product) return;
+    
+    // Calculate unit cost based on the entered purchase price
+    const tempPricing = { ...product.pricing, purchasePrice: purchasePrice };
+    const unitCost = calculateUnitCost(tempPricing);
+
     const existing = cart.find(item => item.productId === product.id);
     if (existing) {
-      setCart(cart.map(item => item.productId === product.id ? { ...item, quantity: item.quantity + qty } : item));
+      setCart(cart.map(item => item.productId === product.id ? { 
+        ...item, 
+        quantity: item.quantity + qty,
+        unitPrice: unitCost,
+        newPurchasePrice: purchasePrice
+      } : item));
     } else {
       setCart([...cart, {
         productId: product.id,
         productName: product.name,
         quantity: qty,
-        unitPrice: calculateUnitCost(product.pricing)
+        unitPrice: unitCost,
+        newPurchasePrice: purchasePrice
       }]);
     }
     setQty(1);
@@ -167,6 +185,16 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
                 placeholder="1"
                 onChange={e => setQty(e.target.value === '' ? 0 : parseFloat(e.target.value))} 
                 min="1" 
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Alış Fiyatı (Birim)</label>
+              <input 
+                type="number" 
+                className="w-full p-4 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" 
+                value={purchasePrice === 0 ? '' : purchasePrice} 
+                placeholder="0.00"
+                onChange={e => setPurchasePrice(e.target.value === '' ? 0 : parseFloat(e.target.value))} 
               />
             </div>
             <div className="flex items-end">
