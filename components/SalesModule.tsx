@@ -96,7 +96,7 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
   const calculateItemTotal = (item: TransactionItem) => {
     const base = item.unitPrice * item.quantity;
     if (item.discount) {
-      return base * (1 - (item.discount / 100));
+      return Math.max(0, base - item.discount);
     }
     return base;
   };
@@ -205,14 +205,14 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">İskonto (%)</label>
+              <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">İskonto (TL)</label>
               <input 
                 type="number" 
                 className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none" 
                 value={discount === 0 ? '' : discount} 
-                placeholder="0"
+                placeholder="0.00"
                 onChange={e => setDiscount(e.target.value === '' ? 0 : parseFloat(e.target.value))} 
-                min="0" max="100" 
+                min="0"
               />
             </div>
             <div className="flex items-end">
