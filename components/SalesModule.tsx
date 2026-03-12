@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Product, Transaction, TransactionType, Contact, TransactionItem } from '../types';
 import { formatCurrency } from '../utils/helpers';
 
@@ -18,6 +18,18 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
   const [discount, setDiscount] = useState(0); 
   const [laborName, setLaborName] = useState('Hizmet Bedeli');
   const [laborPrice, setLaborPrice] = useState(0);
+  const [showProductList, setShowProductList] = useState(false);
+  const productListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (productListRef.current && !productListRef.current.contains(event.target as Node)) {
+        setShowProductList(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (contacts.length > 0) {
@@ -31,6 +43,11 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
   }, [contacts]);
 
   const product = products.find(p => p.id === selectedProductId);
+
+  const filteredProducts = products.filter(p => 
+    p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
+    p.sku.toLowerCase().includes(productSearch.toLowerCase())
+  );
 
   const addToCart = () => {
     if (!product) return;
@@ -122,27 +139,58 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
             <div className="md:col-span-2 space-y-2">
               <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Malzeme / Ürün</label>
               <div className="relative">
-                <input 
-                  type="text"
-                  placeholder="Ürün ara (Ad veya SKU)..."
-                  className="w-full p-3 mb-2 rounded-xl bg-gray-50 border border-gray-100 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
-                  value={productSearch}
-                  onChange={e => setProductSearch(e.target.value)}
-                />
-                <select 
-                  className="w-full p-3 rounded-xl bg-gray-50 border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer" 
-                  value={selectedProductId} 
-                  onChange={e => { setSelectedProductId(e.target.value); setDiscount(0); }}
-                >
-                  <option value="">Seçiniz...</option>
-                  {products
-                    .filter(p => 
-                      p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
-                      p.sku.toLowerCase().includes(productSearch.toLowerCase())
-                    )
-                    .map(p => <option key={p.id} value={p.id} disabled={p.stock <= 0}>{p.name} ({p.stock} {p.unit})</option>)
-                  }
-                </select>
+                <div className="relative">
+                  <input 
+                    type="text"
+                    placeholder="Ürün ara (Ad veya SKU)..."
+                    className="w-full p-3 mb-2 rounded-xl bg-gray-50 border border-gray-100 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={productSearch}
+                    onChange={e => {
+                      setProductSearch(e.target.value);
+                      setShowProductList(true);
+                    }}
+                    onFocus={() => setShowProductList(true)}
+                  />
+                  {showProductList && productSearch && (
+                    <div ref={productListRef} className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-100 rounded-2xl shadow-2xl max-h-[300px] overflow-y-auto">
+                      {filteredProducts.length === 0 ? (
+                        <div className="p-4 text-xs text-gray-400 italic">Sonuç bulunamadı.</div>
+                      ) : (
+                        filteredProducts.map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            disabled={p.stock <= 0}
+                            onClick={() => {
+                              setSelectedProductId(p.id);
+                              setProductSearch(p.name);
+                              setShowProductList(false);
+                              setDiscount(0);
+                            }}
+                            className={`w-full text-left p-4 hover:bg-blue-50 transition flex items-center justify-between border-b border-gray-50 last:border-0 ${selectedProductId === p.id ? 'bg-blue-50' : ''} ${p.stock <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            <div>
+                              <p className="font-bold text-gray-800 text-sm">{p.name}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">SKU: {p.sku}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className={`text-xs font-bold ${p.stock <= 0 ? 'text-red-500' : 'text-blue-600'}`}>
+                                {p.stock} {p.unit}
+                              </p>
+                              <p className="text-[10px] text-gray-400">{formatCurrency(p.sellingPrice)}</p>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                {product && (
+                  <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-between">
+                    <span className="text-xs font-bold text-blue-700">Seçili: {product.name} ({product.stock} {product.unit})</span>
+                    <button onClick={() => { setSelectedProductId(''); setProductSearch(''); }} className="text-blue-400 hover:text-blue-600">✕</button>
+                  </div>
+                )}
               </div>
             </div>
             <div>
