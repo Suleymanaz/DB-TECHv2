@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Product, Transaction, TransactionType, Contact, TransactionItem } from '../types';
 import { calculateUnitCost, formatCurrency } from '../utils/helpers';
 
@@ -16,8 +16,25 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
   const [selectedContactId, setSelectedContactId] = useState('');
   const [qty, setQty] = useState(1);
   const [isReturn, setIsReturn] = useState(false);
+  const [showProductList, setShowProductList] = useState(false);
+  const productListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (productListRef.current && !productListRef.current.contains(event.target as Node)) {
+        setShowProductList(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const product = products.find(p => p.id === selectedProductId);
+
+  const filteredProducts = products.filter(p => 
+    p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
+    p.sku.toLowerCase().includes(productSearch.toLowerCase())
+  );
 
   const addToCart = () => {
     if (!product) return;
@@ -92,27 +109,53 @@ const PurchaseModule: React.FC<PurchaseModuleProps> = ({ products, contacts, onA
             <div className="md:col-span-2 space-y-2">
               <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Ürün Kartı Seçin</label>
               <div className="relative">
-                <input 
-                  type="text"
-                  placeholder="Ürün ara (Ad veya SKU)..."
-                  className="w-full p-3 mb-2 rounded-xl bg-gray-50 border border-gray-100 text-xs focus:ring-2 focus:ring-blue-500 outline-none"
-                  value={productSearch}
-                  onChange={e => setProductSearch(e.target.value)}
-                />
-                <select 
-                  className="w-full p-4 rounded-xl bg-gray-50 border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
-                  value={selectedProductId}
-                  onChange={e => setSelectedProductId(e.target.value)}
-                >
-                  <option value="">Stok seçiniz...</option>
-                  {products
-                    .filter(p => 
-                      p.name.toLowerCase().includes(productSearch.toLowerCase()) || 
-                      p.sku.toLowerCase().includes(productSearch.toLowerCase())
-                    )
-                    .map(p => <option key={p.id} value={p.id}>{p.name} (SKU: {p.sku})</option>)
-                  }
-                </select>
+                <div className="relative">
+                  <input 
+                    type="text"
+                    placeholder="Ürün ara (Ad veya SKU)..."
+                    className="w-full p-4 rounded-xl bg-gray-50 border border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={productSearch}
+                    onChange={e => {
+                      setProductSearch(e.target.value);
+                      setShowProductList(true);
+                    }}
+                    onFocus={() => setShowProductList(true)}
+                  />
+                  {showProductList && productSearch && (
+                    <div ref={productListRef} className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-100 rounded-2xl shadow-2xl max-h-[300px] overflow-y-auto">
+                      {filteredProducts.length === 0 ? (
+                        <div className="p-4 text-xs text-gray-400 italic">Sonuç bulunamadı.</div>
+                      ) : (
+                        filteredProducts.map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedProductId(p.id);
+                              setProductSearch(p.name);
+                              setShowProductList(false);
+                            }}
+                            className={`w-full text-left p-4 hover:bg-blue-50 transition flex items-center justify-between border-b border-gray-50 last:border-0 ${selectedProductId === p.id ? 'bg-blue-50' : ''}`}
+                          >
+                            <div>
+                              <p className="font-bold text-gray-800 text-sm">{p.name}</p>
+                              <p className="text-[10px] text-gray-400 font-mono">SKU: {p.sku}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-xs font-bold text-blue-600">{p.stock} {p.unit}</p>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+                {product && (
+                  <div className="mt-2 p-3 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-between">
+                    <span className="text-xs font-bold text-blue-700">Seçili: {product.name}</span>
+                    <button onClick={() => { setSelectedProductId(''); setProductSearch(''); }} className="text-blue-400 hover:text-blue-600">✕</button>
+                  </div>
+                )}
               </div>
             </div>
             <div>
