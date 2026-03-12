@@ -42,6 +42,8 @@ export interface Tenant {
   name: string;
   status: string;
   createdAt: string;
+  categories: string[];
+  units: string[];
 }
 
 export interface Contact {
@@ -59,6 +61,7 @@ export interface TransactionItem {
   unitPrice: number;
   discount?: number;
   isLabor?: boolean;
+  newPurchasePrice?: number;
 }
 
 export interface Pricing {
