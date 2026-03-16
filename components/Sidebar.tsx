@@ -3,7 +3,7 @@ import React from 'react';
 import { UserRole } from '../types';
 
 interface SidebarProps {
-  activeTab: 'dashboard' | 'inventory' | 'purchases' | 'sales' | 'transactions' | 'contacts' | 'saas' | 'expenses' | 'finance' | 'settings';
+  activeTab: 'dashboard' | 'inventory' | 'purchases' | 'sales' | 'transactions' | 'contacts' | 'saas' | 'expenses' | 'finance' | 'settings' | 'proposals';
   setActiveTab: (tab: any) => void;
   userRole: UserRole;
   onLogout: () => void;
@@ -23,6 +23,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, userRole, on
     { id: 'contacts', label: 'Cari Kartlar', icon: '👥', roles: [UserRole.ADMIN, UserRole.PURCHASE, UserRole.SALES, UserRole.SUPER_ADMIN] },
     { id: 'purchases', label: 'Mal Alımı', icon: '📥', roles: [UserRole.ADMIN, UserRole.PURCHASE, UserRole.SUPER_ADMIN] },
     { id: 'sales', label: 'Satış İşlemi', icon: '📤', roles: [UserRole.ADMIN, UserRole.SALES, UserRole.SUPER_ADMIN] },
+    { id: 'proposals', label: 'Teklifler', icon: '📄', roles: [UserRole.ADMIN, UserRole.SALES, UserRole.SUPER_ADMIN] },
     { id: 'expenses', label: 'Masraflar', icon: '🧾', roles: [UserRole.ADMIN, UserRole.PURCHASE, UserRole.SUPER_ADMIN] },
     { id: 'transactions', label: 'İşlem Geçmişi', icon: '📜', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
     { id: 'finance', label: 'Mali Tablo', icon: '📊', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN] },
