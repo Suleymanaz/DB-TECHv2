@@ -161,7 +161,7 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
             <div style="margin-bottom: 35px; background: ${accentColor}; padding: 20px; border-radius: 16px; border: 1px solid ${borderColor};">
               <h3 style="font-size: 10px; font-weight: 800; color: #94a3b8; margin: 0 0 10px 0; text-transform: uppercase;">Müşteri Bilgileri</h3>
               <p style="font-size: 18px; font-weight: 700; color: #1e293b; margin: 0;">${proposal.contactName}</p>
-              ${proposal.contactPerson ? `<p style="font-size: 13px; color: #64748b; margin: 6px 0 0 0;">👤 İlgili Kişi: <strong style="color: #1e293b;">${proposal.contactPerson}</strong></p>` : ''}
+              ${proposal.contactPerson ? `<p style="font-size: 13px; color: #64748b; margin: 6px 0 0 0;">İlgili Kişi: <strong style="color: #1e293b;">${proposal.contactPerson}</strong></p>` : ''}
             </div>
 
             <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 30px; font-size: 12px; border: 1px solid ${borderColor}; border-radius: 12px; overflow: hidden;">
