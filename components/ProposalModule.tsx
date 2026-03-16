@@ -99,27 +99,33 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
     console.log("PDF süreci başlatıldı...", proposal.id);
     
     try {
-      // 1. Logoyu Base64'e çevir (En güvenli yol)
-      const getBase64FromUrl = async (url: string): Promise<string | null> => {
-        try {
-          const response = await fetch(url);
-          if (!response.ok) return null;
-          const blob = await response.blob();
-          return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(blob);
-            reader.onloadend = () => resolve(reader.result as string);
-          });
-        } catch (e) {
-          console.warn("Logo yüklenirken hata oluştu:", e);
-          return null;
+      // 1. Logo Hazırlığı
+      let logoBase64 = null;
+      if (template?.logoUrl) {
+        if (template.logoUrl.startsWith('data:image/')) {
+          // Zaten Base64 formatında kaydedilmiş
+          logoBase64 = template.logoUrl;
+        } else {
+          // Hala URL formatındaysa (Eski kayıtlar için)
+          try {
+            const response = await fetch(template.logoUrl);
+            if (response.ok) {
+              const blob = await response.blob();
+              logoBase64 = await new Promise<string>((resolve) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onloadend = () => resolve(reader.result as string);
+              });
+            }
+          } catch (e) {
+            console.warn("Logo URL'den yüklenemedi:", e);
+          }
         }
-      };
-
-      const logoBase64 = template?.logoUrl ? await getBase64FromUrl(template.logoUrl) : null;
+      }
 
       // 2. Gizli Elementi Oluştur
       const printElement = document.createElement('div');
+      printElement.id = 'pdf-render-element';
       Object.assign(printElement.style, {
         position: 'absolute',
         left: '-9999px',
@@ -257,14 +263,13 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
       pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
       
       pdf.save(`Teklif_${proposal.id}.pdf`);
-      
-      // Temizlik
-      document.body.removeChild(printElement);
       console.log("PDF Tamamlandı.");
     } catch (error) {
       console.error('PDF generation error:', error);
       alert('PDF oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.');
-      const el = document.querySelector('[style*="left: -9999px"]');
+    } finally {
+      // Her durumda temizlik yap
+      const el = document.getElementById('pdf-render-element');
       if (el) el.remove();
     }
   };
