@@ -106,3 +106,28 @@ export interface AuditLog {
   details: string;
   created_at: string;
 }
+
+export interface ProposalTemplate {
+  id: string;
+  companyId: string;
+  logoUrl?: string;
+  headerText?: string;
+  footerText?: string;
+  bankDetails?: string;
+  terms?: string;
+}
+
+export interface Proposal {
+  id: string;
+  companyId: string;
+  contactId: string;
+  contactName: string;
+  items: TransactionItem[];
+  subtotal: number;
+  totalDiscount: number;
+  totalAmount: number;
+  date: string;
+  validUntil: string;
+  status: 'DRAFT' | 'SENT' | 'ACCEPTED' | 'REJECTED';
+  notes?: string;
+}
