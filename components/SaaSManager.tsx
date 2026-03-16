@@ -295,8 +295,10 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
                                                                     return;
                                                                 }
                                                                 const reader = new FileReader();
-                                                                reader.onloadend = () => {
-                                                                    setTemplate({...template, logoUrl: reader.result as string});
+                                                                reader.onloadend = (event) => {
+                                                                  const base64 = event.target?.result as string;
+                                                                  console.log("Base64 Oluştu:", base64.substring(0, 50) + "..."); // Kontrol için
+                                                                  setTemplate({...template, logoUrl: logoUrl: base64 });
                                                                 };
                                                                 reader.readAsDataURL(file);
                                                             }
