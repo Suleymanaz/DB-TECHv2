@@ -278,7 +278,7 @@ const App: React.FC = () => {
           {activeTab === 'sales' && (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.SALES || currentUser.role === UserRole.SUPER_ADMIN) && (
             <SalesModule products={products} contacts={contacts.filter(c => c.type === ContactType.CUSTOMER)} onAddTransaction={addTransaction} />
           )}
-          {activeTab === 'proposals' && (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.SALES || currentUser.role === UserRole.SUPER_ADMIN) && (
+          {activeTab === 'proposals' && (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.SALES || currentUser.role === UserRole.PURCHASE || currentUser.role === UserRole.SUPER_ADMIN) && (
             <ProposalModule products={products} contacts={contacts.filter(c => c.type === ContactType.CUSTOMER)} companyId={currentUser.companyId!} />
           )}
           {activeTab === 'transactions' && (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.SUPER_ADMIN) && (
