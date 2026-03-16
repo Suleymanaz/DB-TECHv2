@@ -13,12 +13,13 @@ import SaaSManager from './components/SaaSManager';
 import ExpenseManager from './components/ExpenseManager';
 import FinancialReports from './components/FinancialReports';
 import AppSettings from './components/AppSettings.tsx';
+import ProposalModule from './components/ProposalModule';
 import { dataService } from './services/dataService';
 import { isSupabaseConfigured } from './lib/supabaseClient';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'purchases' | 'sales' | 'transactions' | 'contacts' | 'saas' | 'expenses' | 'finance' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'purchases' | 'sales' | 'transactions' | 'contacts' | 'saas' | 'expenses' | 'finance' | 'settings' | 'proposals'>('dashboard');
   
   const [originalAdmin, setOriginalAdmin] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -232,6 +233,7 @@ const App: React.FC = () => {
               {activeTab === 'expenses' && 'İşletme Gider Yönetimi'}
               {activeTab === 'finance' && 'Mali Tablolar & Analiz'}
               {activeTab === 'settings' && 'Şirket Yapılandırması'}
+              {activeTab === 'proposals' && 'Teklif Hazırlama & Yönetimi'}
             </h1>
             {isSupabaseConfigured() && currentUser.companyId && (
                <span className="text-[10px] bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full ml-4 font-black tracking-widest uppercase">
@@ -275,6 +277,9 @@ const App: React.FC = () => {
           )}
           {activeTab === 'sales' && (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.SALES || currentUser.role === UserRole.SUPER_ADMIN) && (
             <SalesModule products={products} contacts={contacts.filter(c => c.type === ContactType.CUSTOMER)} onAddTransaction={addTransaction} />
+          )}
+          {activeTab === 'proposals' && (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.SALES || currentUser.role === UserRole.SUPER_ADMIN) && (
+            <ProposalModule products={products} contacts={contacts.filter(c => c.type === ContactType.CUSTOMER)} companyId={currentUser.companyId!} />
           )}
           {activeTab === 'transactions' && (currentUser.role === UserRole.ADMIN || currentUser.role === UserRole.SUPER_ADMIN) && (
             <Transactions transactions={transactions} companyName={currentUser.companyName} />
