@@ -120,11 +120,13 @@ export interface ProposalTemplate {
 export interface Proposal {
   id: string;
   companyId: string;
-  contactId: string;
+  contactId?: string;
   contactName: string;
+  contactPerson?: string;
   items: TransactionItem[];
   subtotal: number;
   totalDiscount: number;
+  vatTotal: number;
   totalAmount: number;
   date: string;
   validUntil: string;
