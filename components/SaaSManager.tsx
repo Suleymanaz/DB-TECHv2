@@ -274,8 +274,51 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="space-y-4">
                                         <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Logo URL</label>
-                                            <input className="w-full p-3 border rounded-xl" value={template.logoUrl} onChange={e => setTemplate({...template, logoUrl: e.target.value})} placeholder="https://..." />
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Şirket Logosu</label>
+                                            <div className="flex items-center space-x-4">
+                                                {template.logoUrl && (
+                                                    <div className="w-16 h-16 border rounded-lg overflow-hidden bg-white flex items-center justify-center">
+                                                        <img src={template.logoUrl} alt="Logo" className="max-w-full max-h-full object-contain" />
+                                                    </div>
+                                                )}
+                                                <div className="flex-1">
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*"
+                                                        className="hidden" 
+                                                        id="logo-upload"
+                                                        onChange={async (e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) {
+                                                                if (file.size > 1024 * 1024) { // 1MB limit for Base64 in DB
+                                                                    alert('Logo dosyası çok büyük (Max 1MB).');
+                                                                    return;
+                                                                }
+                                                                const reader = new FileReader();
+                                                                reader.onloadend = () => {
+                                                                    setTemplate({...template, logoUrl: reader.result as string});
+                                                                };
+                                                                reader.readAsDataURL(file);
+                                                            }
+                                                        }}
+                                                    />
+                                                    <label 
+                                                        htmlFor="logo-upload" 
+                                                        className="inline-block px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-xs font-bold cursor-pointer hover:bg-slate-200 transition"
+                                                    >
+                                                        {template.logoUrl ? 'Logoyu Değiştir' : 'Logo Yükle'}
+                                                    </label>
+                                                    {template.logoUrl && (
+                                                        <button 
+                                                            onClick={() => setTemplate({...template, logoUrl: ''})}
+                                                            className="ml-2 text-red-500 text-xs font-bold"
+                                                        >
+                                                            Kaldır
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <p className="text-[9px] text-slate-400 mt-1">Önerilen: PNG veya JPG, Max 1MB. Base64 olarak kaydedilir.</p>
                                         </div>
                                         <div>
                                             <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Üst Bilgi (Header)</label>
