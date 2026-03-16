@@ -11,7 +11,7 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
-  const [detailTab, setDetailTab] = useState<'users' | 'logs' | 'config'>('users');
+  const [detailTab, setDetailTab] = useState<'users' | 'logs' | 'config' | 'template'>('users');
   
   const [tenantUsers, setTenantUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -24,6 +24,16 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
   const [tempCategories, setTempCategories] = useState<string[]>([]);
   const [tempUnits, setTempUnits] = useState<string[]>([]);
   const [newVal, setNewVal] = useState('');
+
+  // Template State
+  const [template, setTemplate] = useState<any>({
+    logoUrl: '',
+    headerText: '',
+    footerText: '',
+    bankDetails: '',
+    terms: ''
+  });
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
 
   // Modals
   const [showCompanyModal, setShowCompanyModal] = useState(false);
@@ -49,6 +59,7 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
             setTempCategories(selectedTenant.categories || []);
             setTempUnits(selectedTenant.units || []);
         }
+        if (detailTab === 'template') loadTemplate(selectedTenant.id);
     }
   }, [selectedTenant, detailTab]);
 
@@ -73,6 +84,23 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
     setLoadingLogs(false);
   };
 
+  const loadTemplate = async (tenantId: string) => {
+    setLoadingTemplate(true);
+    const t = await dataService.getProposalTemplate(tenantId);
+    if (t) {
+      setTemplate(t);
+    } else {
+      setTemplate({
+        logoUrl: '',
+        headerText: '',
+        footerText: '',
+        bankDetails: '',
+        terms: ''
+      });
+    }
+    setLoadingTemplate(false);
+  };
+
   const handleSaveConfig = async () => {
       if (!selectedTenant) return;
       const success = await dataService.updateTenantConfig(selectedTenant.id, tempCategories, tempUnits);
@@ -80,6 +108,16 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
           alert('Şirket ayarları güncellendi.');
           loadTenants();
       }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!selectedTenant) return;
+    await dataService.saveProposalTemplate({
+      id: template.id || Math.random().toString(36).substring(7),
+      companyId: selectedTenant.id,
+      ...template
+    });
+    alert('Teklif şablonu güncellendi.');
   };
 
   const handleUpdateRole = async (user: User, newRole: UserRole) => {
@@ -156,6 +194,7 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
                         <div className="flex bg-slate-200 p-1 rounded-xl mt-4 w-fit">
                             <button onClick={() => setDetailTab('users')} className={`px-6 py-2 rounded-lg text-xs font-bold transition ${detailTab === 'users' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>PERSONELLER</button>
                             <button onClick={() => setDetailTab('config')} className={`px-6 py-2 rounded-lg text-xs font-bold transition ${detailTab === 'config' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>YAPILANDIRMA</button>
+                            <button onClick={() => setDetailTab('template')} className={`px-6 py-2 rounded-lg text-xs font-bold transition ${detailTab === 'template' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>TEKLİF ŞABLONU</button>
                             <button onClick={() => setDetailTab('logs')} className={`px-6 py-2 rounded-lg text-xs font-bold transition ${detailTab === 'logs' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>LOG KAYITLARI</button>
                         </div>
                     </div>
@@ -164,6 +203,9 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
                     )}
                     {detailTab === 'config' && (
                         <button onClick={handleSaveConfig} className="px-6 py-3 bg-green-600 text-white font-bold rounded-xl shadow-lg hover:bg-green-700 transition">Ayarları Kaydet</button>
+                    )}
+                    {detailTab === 'template' && (
+                        <button onClick={handleSaveTemplate} className="px-6 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 transition">Şablonu Kaydet</button>
                     )}
                 </div>
 
@@ -223,6 +265,39 @@ const SaaSManager: React.FC<SaaSManagerProps> = ({ onImpersonate }) => {
                                     ))}
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {detailTab === 'template' && (
+                        <div className="space-y-8">
+                            {loadingTemplate ? <div className="text-center py-10">Yükleniyor...</div> : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Logo URL</label>
+                                            <input className="w-full p-3 border rounded-xl" value={template.logoUrl} onChange={e => setTemplate({...template, logoUrl: e.target.value})} placeholder="https://..." />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Üst Bilgi (Header)</label>
+                                            <textarea className="w-full p-3 border rounded-xl h-24" value={template.headerText} onChange={e => setTemplate({...template, headerText: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Alt Bilgi (Footer)</label>
+                                            <textarea className="w-full p-3 border rounded-xl h-24" value={template.footerText} onChange={e => setTemplate({...template, footerText: e.target.value})} />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Banka Bilgileri</label>
+                                            <textarea className="w-full p-3 border rounded-xl h-24" value={template.bankDetails} onChange={e => setTemplate({...template, bankDetails: e.target.value})} />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Şartlar ve Koşullar</label>
+                                            <textarea className="w-full p-3 border rounded-xl h-32" value={template.terms} onChange={e => setTemplate({...template, terms: e.target.value})} />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
