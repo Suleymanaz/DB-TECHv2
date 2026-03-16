@@ -97,109 +97,141 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
   const generatePDF = async (proposal: Proposal) => {
     const { jsPDF } = await import('jspdf');
     
+    // Helper to convert image to base64 to avoid CORS issues with html2canvas
+    const getBase64Image = async (url: string): Promise<string> => {
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+        console.error("Logo fetch error:", e);
+        return '';
+      }
+    };
+
+    const logoBase64 = template?.logoUrl ? await getBase64Image(template.logoUrl) : '';
+    
     // Create a hidden element for PDF generation
     const printElement = document.createElement('div');
     printElement.style.position = 'fixed';
     printElement.style.left = '-9999px';
     printElement.style.top = '0';
     printElement.style.width = '210mm'; // A4 width
+    printElement.style.minHeight = '297mm'; // A4 height
     printElement.style.backgroundColor = 'white';
     printElement.style.padding = '20mm';
-    printElement.style.fontFamily = 'Arial, sans-serif';
-    printElement.style.color = '#333';
+    printElement.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+    printElement.style.color = '#1e293b';
+    printElement.style.display = 'flex';
+    printElement.style.flexDirection = 'column';
 
-    const logoHtml = template?.logoUrl ? `<img src="${template.logoUrl}" style="max-height: 60px; margin-bottom: 20px;" />` : '';
+    const softColor = '#64748b'; // Soft slate
+    const accentColor = '#f8fafc'; // Very light gray for boxes
+    const borderColor = '#e2e8f0';
+
+    const logoHtml = logoBase64 ? `<img src="${logoBase64}" style="max-height: 70px; max-width: 200px; margin-bottom: 15px; object-fit: contain;" />` : '';
     
     printElement.innerHTML = DOMPurify.sanitize(`
-      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-        <div>
-          ${logoHtml}
-          <h1 style="font-size: 24px; font-weight: bold; color: #1e293b; margin: 0;">TEKLİF FORMU</h1>
-        </div>
-        <div style="text-align: right; font-size: 12px; color: #64748b;">
-          <p style="margin: 2px 0;"><strong>Teklif No:</strong> ${proposal.id}</p>
-          <p style="margin: 2px 0;"><strong>Tarih:</strong> ${new Date(proposal.date).toLocaleDateString('tr-TR')}</p>
-          <p style="margin: 2px 0;"><strong>Geçerlilik:</strong> ${new Date(proposal.validUntil).toLocaleDateString('tr-TR')}</p>
-        </div>
-      </div>
-
-      <div style="margin-top: 40px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px;">
-        <h3 style="font-size: 14px; font-weight: bold; color: #64748b; margin-bottom: 5px; text-transform: uppercase;">Müşteri Bilgileri</h3>
-        <p style="font-size: 16px; font-weight: bold; margin: 0;">${proposal.contactName}</p>
-        ${proposal.contactPerson ? `<p style="font-size: 14px; margin: 5px 0 0 0;">İlgili Kişi: ${proposal.contactPerson}</p>` : ''}
-      </div>
-
-      <table style="width: 100%; border-collapse: collapse; margin-top: 30px; font-size: 12px;">
-        <thead>
-          <tr style="background-color: #4f46e5; color: white;">
-            <th style="padding: 10px; text-align: left; border: 1px solid #e2e8f0;">#</th>
-            <th style="padding: 10px; text-align: left; border: 1px solid #e2e8f0;">Ürün/Hizmet</th>
-            <th style="padding: 10px; text-align: center; border: 1px solid #e2e8f0;">Miktar</th>
-            <th style="padding: 10px; text-align: right; border: 1px solid #e2e8f0;">Birim Fiyat (KDV Hariç)</th>
-            <th style="padding: 10px; text-align: right; border: 1px solid #e2e8f0;">İskonto</th>
-            <th style="padding: 10px; text-align: right; border: 1px solid #e2e8f0;">Toplam</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${proposal.items.map((item, index) => `
-            <tr>
-              <td style="padding: 10px; border: 1px solid #e2e8f0;">${index + 1}</td>
-              <td style="padding: 10px; border: 1px solid #e2e8f0;">${item.productName}</td>
-              <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: center;">${item.quantity}</td>
-              <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: right;">${formatCurrency(item.unitPrice)}</td>
-              <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: right;">${item.discount ? formatCurrency(item.discount) : '-'}</td>
-              <td style="padding: 10px; border: 1px solid #e2e8f0; text-align: right;">${formatCurrency(calculateItemTotal(item))}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-
-      <div style="margin-top: 30px; display: flex; justify-content: flex-end;">
-        <div style="width: 250px; font-size: 12px;">
-          <div style="display: flex; justify-content: space-between; padding: 5px 0;">
-            <span>Ara Toplam:</span>
-            <span>${formatCurrency(proposal.subtotal)}</span>
+      <div style="flex: 1;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
+          <div>
+            ${logoHtml}
+            <h1 style="font-size: 28px; font-weight: 800; color: ${softColor}; margin: 0; letter-spacing: -1px;">TEKLİF FORMU</h1>
           </div>
-          ${proposal.totalDiscount > 0 ? `
-            <div style="display: flex; justify-content: space-between; padding: 5px 0; color: #ef4444;">
-              <span>Toplam İskonto:</span>
-              <span>-${formatCurrency(proposal.totalDiscount)}</span>
+          <div style="text-align: right; font-size: 11px; color: #94a3b8;">
+            <div style="background: ${accentColor}; padding: 15px; border-radius: 12px; border: 1px solid ${borderColor};">
+              <p style="margin: 0 0 4px 0;"><strong style="color: ${softColor};">Teklif No:</strong> <span style="color: #1e293b;">${proposal.id}</span></p>
+              <p style="margin: 0 0 4px 0;"><strong style="color: ${softColor};">Tarih:</strong> <span style="color: #1e293b;">${new Date(proposal.date).toLocaleDateString('tr-TR')}</span></p>
+              <p style="margin: 0;"><strong style="color: ${softColor};">Geçerlilik:</strong> <span style="color: #1e293b;">${new Date(proposal.validUntil).toLocaleDateString('tr-TR')}</span></p>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 35px; background: ${accentColor}; padding: 20px; border-radius: 16px; border: 1px solid ${borderColor};">
+          <h3 style="font-size: 10px; font-weight: 800; color: #94a3b8; margin: 0 0 10px 0; text-transform: uppercase; tracking: 1px;">Müşteri Bilgileri</h3>
+          <p style="font-size: 18px; font-weight: 700; color: #1e293b; margin: 0;">${proposal.contactName}</p>
+          ${proposal.contactPerson ? `<p style="font-size: 13px; color: #64748b; margin: 6px 0 0 0; display: flex; align-items: center;"><span style="margin-right: 5px;">👤</span> İlgili Kişi: <strong style="color: #1e293b; margin-left: 4px;">${proposal.contactPerson}</strong></p>` : ''}
+        </div>
+
+        <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 30px; font-size: 12px; border: 1px solid ${borderColor}; border-radius: 12px; overflow: hidden;">
+          <thead>
+            <tr style="background-color: ${softColor}; color: white;">
+              <th style="padding: 12px 15px; text-align: left; font-weight: 600;">#</th>
+              <th style="padding: 12px 15px; text-align: left; font-weight: 600;">Ürün / Hizmet Açıklaması</th>
+              <th style="padding: 12px 15px; text-align: center; font-weight: 600;">Miktar</th>
+              <th style="padding: 12px 15px; text-align: right; font-weight: 600;">Birim Fiyat</th>
+              <th style="padding: 12px 15px; text-align: right; font-weight: 600;">İskonto</th>
+              <th style="padding: 12px 15px; text-align: right; font-weight: 600;">Toplam</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${proposal.items.map((item, index) => `
+              <tr style="background-color: ${index % 2 === 0 ? 'white' : '#fcfcfd'};">
+                <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; color: #94a3b8;">${index + 1}</td>
+                <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; font-weight: 600; color: #1e293b;">${item.productName}</td>
+                <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; text-align: center; color: #475569;">${item.quantity}</td>
+                <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; text-align: right; color: #475569;">${formatCurrency(item.unitPrice)}</td>
+                <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; text-align: right; color: #ef4444;">${item.discount ? formatCurrency(item.discount) : '-'}</td>
+                <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; text-align: right; font-weight: 700; color: #1e293b;">${formatCurrency(calculateItemTotal(item))}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        <div style="display: flex; justify-content: flex-end; margin-bottom: 40px;">
+          <div style="width: 280px; background: ${accentColor}; padding: 20px; border-radius: 16px; border: 1px solid ${borderColor};">
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #64748b;">
+              <span>Ara Toplam:</span>
+              <span style="color: #1e293b; font-weight: 600;">${formatCurrency(proposal.subtotal)}</span>
+            </div>
+            ${proposal.totalDiscount > 0 ? `
+              <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #ef4444;">
+                <span>Toplam İskonto:</span>
+                <span style="font-weight: 600;">-${formatCurrency(proposal.totalDiscount)}</span>
+              </div>
+            ` : ''}
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #64748b;">
+              <span>KDV (%${vatRate}):</span>
+              <span style="color: #1e293b; font-weight: 600;">${formatCurrency(proposal.vatTotal || 0)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0 0 0; border-top: 1px dashed ${borderColor}; margin-top: 10px; font-weight: 800; font-size: 20px; color: ${softColor};">
+              <span>GENEL TOPLAM</span>
+              <span>${formatCurrency(proposal.totalAmount)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          ${proposal.notes ? `
+            <div style="background: #fff; padding: 15px; border-radius: 12px; border: 1px solid ${borderColor};">
+              <h4 style="font-size: 11px; font-weight: 800; color: #94a3b8; margin: 0 0 8px 0; text-transform: uppercase;">Teklif Notları</h4>
+              <p style="font-size: 11px; color: #475569; margin: 0; white-space: pre-wrap; line-height: 1.5;">${proposal.notes}</p>
+            </div>
+          ` : '<div></div>'}
+
+          ${template?.bankDetails ? `
+            <div style="background: #fff; padding: 15px; border-radius: 12px; border: 1px solid ${borderColor};">
+              <h4 style="font-size: 11px; font-weight: 800; color: #94a3b8; margin: 0 0 8px 0; text-transform: uppercase;">Banka Bilgileri</h4>
+              <p style="font-size: 11px; color: #475569; margin: 0; white-space: pre-wrap; line-height: 1.5;">${template.bankDetails}</p>
             </div>
           ` : ''}
-          <div style="display: flex; justify-content: space-between; padding: 5px 0;">
-            <span>KDV (%${vatRate}):</span>
-            <span>${formatCurrency(proposal.vatTotal || 0)}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 2px solid #1e293b; margin-top: 5px; font-weight: bold; font-size: 16px; color: #1e293b;">
-            <span>GENEL TOPLAM:</span>
-            <span>${formatCurrency(proposal.totalAmount)}</span>
-          </div>
         </div>
+
+        ${template?.terms ? `
+          <div style="margin-top: 20px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid ${borderColor};">
+            <h4 style="font-size: 11px; font-weight: 800; color: #94a3b8; margin: 0 0 8px 0; text-transform: uppercase;">Şartlar ve Koşullar</h4>
+            <p style="font-size: 11px; color: #475569; margin: 0; white-space: pre-wrap; line-height: 1.5;">${template.terms}</p>
+          </div>
+        ` : ''}
       </div>
 
-      ${proposal.notes ? `
-        <div style="margin-top: 40px;">
-          <h4 style="font-size: 12px; font-weight: bold; margin-bottom: 5px;">Notlar:</h4>
-          <p style="font-size: 10px; color: #64748b; white-space: pre-wrap;">${proposal.notes}</p>
-        </div>
-      ` : ''}
-
-      ${template?.terms ? `
-        <div style="margin-top: 30px;">
-          <h4 style="font-size: 12px; font-weight: bold; margin-bottom: 5px;">Şartlar ve Koşullar:</h4>
-          <p style="font-size: 10px; color: #64748b; white-space: pre-wrap;">${template.terms}</p>
-        </div>
-      ` : ''}
-
-      ${template?.bankDetails ? `
-        <div style="margin-top: 30px;">
-          <h4 style="font-size: 12px; font-weight: bold; margin-bottom: 5px;">Banka Bilgileri:</h4>
-          <p style="font-size: 10px; color: #64748b; white-space: pre-wrap;">${template.bankDetails}</p>
-        </div>
-      ` : ''}
-
       ${template?.footerText ? `
-        <div style="position: absolute; bottom: 20mm; left: 0; right: 0; text-align: center; font-size: 10px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 10px; margin: 0 20mm;">
+        <div style="margin-top: 40px; padding-top: 15px; border-top: 1px solid ${borderColor}; text-align: center; font-size: 10px; color: #94a3b8;">
           ${template.footerText}
         </div>
       ` : ''}
@@ -212,16 +244,20 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
         scale: 2,
         useCORS: true,
         logging: false,
-        allowTaint: true
+        allowTaint: true,
+        backgroundColor: '#ffffff'
       });
       
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
       
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      // Calculate image dimensions to fit A4
+      const imgProps = pdf.getImageProperties(imgData);
+      const renderWidth = pdfWidth;
+      const renderHeight = (imgProps.height * renderWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, renderWidth, renderHeight);
       pdf.save(`Teklif_${proposal.id}.pdf`);
     } catch (error) {
       console.error('PDF generation error:', error);
@@ -236,34 +272,34 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-            <h3 className="text-lg font-bold mb-6 flex items-center"><span className="mr-2">📝</span> Yeni Teklif Hazırla</h3>
+            <h3 className="text-lg font-bold mb-6 flex items-center text-slate-700"><span className="mr-2">📝</span> Yeni Teklif Hazırla</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="md:col-span-2 space-y-2">
-                <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Ürün/Hizmet Adı</label>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-widest">Ürün/Hizmet Adı</label>
                 <input 
                   type="text"
                   placeholder="Ürün veya hizmet adını yazın..."
-                  className="w-full p-4 rounded-xl bg-gray-50 border border-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full p-4 rounded-xl bg-slate-50 border border-slate-100 text-sm focus:ring-2 focus:ring-slate-400 outline-none transition-all"
                   value={manualProductName}
                   onChange={e => setManualProductName(e.target.value)}
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Birim Fiyat (KDV Hariç)</label>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-widest">Birim Fiyat (KDV Hariç)</label>
                 <input 
                   type="number" 
-                  className="w-full p-4 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold" 
+                  className="w-full p-4 rounded-xl bg-slate-50 border-slate-100 text-sm font-bold text-slate-700" 
                   value={manualUnitPrice} 
                   onChange={e => setManualUnitPrice(parseFloat(e.target.value) || 0)} 
                   min="0" 
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">Miktar</label>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-widest">Miktar</label>
                 <input 
                   type="number" 
-                  className="w-full p-4 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold" 
+                  className="w-full p-4 rounded-xl bg-slate-50 border-slate-100 text-sm font-bold text-slate-700" 
                   value={qty} 
                   onChange={e => setQty(parseFloat(e.target.value) || 0)} 
                   min="1" 
@@ -273,10 +309,10 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
             
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-widest">İskonto (TL)</label>
+                <label className="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-widest">İskonto (TL)</label>
                 <input 
                   type="number" 
-                  className="w-full p-4 rounded-xl bg-gray-50 border-gray-100 text-sm font-bold" 
+                  className="w-full p-4 rounded-xl bg-slate-50 border-slate-100 text-sm font-bold text-slate-700" 
                   value={discount} 
                   onChange={e => setDiscount(parseFloat(e.target.value) || 0)} 
                   min="0" 
@@ -285,7 +321,7 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
               <div className="md:col-span-3">
                 <button 
                   onClick={addToCart}
-                  className="mt-5 w-full py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition"
+                  className="mt-5 w-full py-4 bg-slate-600 text-white font-bold rounded-xl hover:bg-slate-700 transition shadow-lg shadow-slate-200"
                 >
                   Kalem Ekle
                 </button>
@@ -295,22 +331,22 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
 
           <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="p-6 border-b border-gray-50">
-              <h3 className="text-lg font-bold">Teklif Kalemleri</h3>
+              <h3 className="text-lg font-bold text-slate-700">Teklif Kalemleri</h3>
             </div>
             <div className="p-6">
               {cart.length === 0 ? (
-                <p className="text-center text-gray-400 italic py-8">Henüz kalem eklenmedi.</p>
+                <p className="text-center text-slate-400 italic py-8">Henüz kalem eklenmedi.</p>
               ) : (
                 <div className="space-y-3">
                   {cart.map((item, i) => (
-                    <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    <div key={i} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
                       <div>
-                        <p className="font-bold text-gray-800">{item.productName}</p>
-                        <p className="text-xs text-gray-400">{item.quantity} x {formatCurrency(item.unitPrice)} {item.discount ? `(-${formatCurrency(item.discount)})` : ''}</p>
+                        <p className="font-bold text-slate-800">{item.productName}</p>
+                        <p className="text-xs text-slate-400">{item.quantity} x {formatCurrency(item.unitPrice)} {item.discount ? `(-${formatCurrency(item.discount)})` : ''}</p>
                       </div>
                       <div className="flex items-center space-x-4">
-                        <p className="font-black text-blue-600">{formatCurrency(calculateItemTotal(item))}</p>
-                        <button onClick={() => setCart(cart.filter((_, idx) => idx !== i))} className="text-red-400 hover:text-red-600">✕</button>
+                        <p className="font-black text-slate-600">{formatCurrency(calculateItemTotal(item))}</p>
+                        <button onClick={() => setCart(cart.filter((_, idx) => idx !== i))} className="text-red-300 hover:text-red-500 transition-colors">✕</button>
                       </div>
                     </div>
                   ))}
@@ -321,27 +357,27 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-slate-900 p-8 rounded-3xl text-white shadow-xl">
-            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-8">Teklif Detayları</h3>
+          <div className="bg-slate-800 p-8 rounded-3xl text-white shadow-xl">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-8">Teklif Detayları</h3>
             
             <div className="space-y-6">
               <div>
-                <label className="block text-[10px] text-slate-500 mb-2 font-bold uppercase tracking-widest">Müşteri Adı / Ünvanı</label>
+                <label className="block text-[10px] text-slate-400 mb-2 font-bold uppercase tracking-widest">Müşteri Adı / Ünvanı</label>
                 <input 
                   type="text"
                   placeholder="Müşteri adını yazın..."
-                  className="w-full bg-slate-800 border-slate-700 rounded-xl p-4 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-slate-700 border-slate-600 rounded-xl p-4 text-sm text-white outline-none focus:ring-2 focus:ring-slate-500 transition-all"
                   value={manualContactName}
                   onChange={e => setManualContactName(e.target.value)}
                 />
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-500 mb-2 font-bold uppercase tracking-widest">İlgili Kişi</label>
+                <label className="block text-[10px] text-slate-400 mb-2 font-bold uppercase tracking-widest">İlgili Kişi</label>
                 <input 
                   type="text"
                   placeholder="İlgili kişi adı..."
-                  className="w-full bg-slate-800 border-slate-700 rounded-xl p-4 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-slate-700 border-slate-600 rounded-xl p-4 text-sm text-white outline-none focus:ring-2 focus:ring-slate-500 transition-all"
                   value={manualContactPerson}
                   onChange={e => setManualContactPerson(e.target.value)}
                 />
@@ -349,9 +385,9 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] text-slate-500 mb-2 font-bold uppercase tracking-widest">KDV Oranı (%)</label>
+                  <label className="block text-[10px] text-slate-400 mb-2 font-bold uppercase tracking-widest">KDV Oranı (%)</label>
                   <select 
-                    className="w-full bg-slate-800 border-slate-700 rounded-xl p-4 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full bg-slate-700 border-slate-600 rounded-xl p-4 text-sm text-white outline-none focus:ring-2 focus:ring-slate-500 transition-all"
                     value={vatRate}
                     onChange={e => setVatRate(parseInt(e.target.value))}
                   >
@@ -362,10 +398,10 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] text-slate-500 mb-2 font-bold uppercase tracking-widest">Geçerlilik</label>
+                  <label className="block text-[10px] text-slate-400 mb-2 font-bold uppercase tracking-widest">Geçerlilik</label>
                   <input 
                     type="date" 
-                    className="w-full bg-slate-800 border-slate-700 rounded-xl p-4 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full bg-slate-700 border-slate-600 rounded-xl p-4 text-sm text-white outline-none focus:ring-2 focus:ring-slate-500 transition-all"
                     value={validUntil}
                     onChange={e => setValidUntil(e.target.value)}
                   />
@@ -373,16 +409,16 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-500 mb-2 font-bold uppercase tracking-widest">Notlar</label>
+                <label className="block text-[10px] text-slate-400 mb-2 font-bold uppercase tracking-widest">Notlar</label>
                 <textarea 
-                  className="w-full bg-slate-800 border-slate-700 rounded-xl p-4 text-sm text-white outline-none focus:ring-2 focus:ring-blue-500 h-24"
+                  className="w-full bg-slate-700 border-slate-600 rounded-xl p-4 text-sm text-white outline-none focus:ring-2 focus:ring-slate-500 h-24 transition-all"
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   placeholder="Teklif notları..."
                 />
               </div>
 
-              <div className="pt-6 border-t border-slate-800">
+              <div className="pt-6 border-t border-slate-700">
                 <div className="flex justify-between mb-2">
                   <span className="text-xs text-slate-400">Ara Toplam (KDV Hariç)</span>
                   <span className="text-sm font-bold">{formatCurrency(subtotal)}</span>
@@ -399,14 +435,14 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
                 </div>
                 <div className="flex justify-between items-end">
                   <span className="text-xs font-black text-slate-500 uppercase">Genel Toplam</span>
-                  <span className="text-3xl font-black text-blue-400">{formatCurrency(totalAmount)}</span>
+                  <span className="text-3xl font-black text-slate-200">{formatCurrency(totalAmount)}</span>
                 </div>
               </div>
 
               <button 
                 onClick={handleSaveProposal}
                 disabled={cart.length === 0}
-                className="w-full py-5 bg-blue-600 text-white font-black text-lg rounded-2xl hover:bg-blue-700 transition disabled:opacity-50"
+                className="w-full py-5 bg-slate-600 text-white font-black text-lg rounded-2xl hover:bg-slate-500 transition disabled:opacity-50 shadow-xl shadow-slate-900/20"
               >
                 TEKLİFİ KAYDET
               </button>
@@ -417,12 +453,12 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
 
       <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="p-6 border-b border-gray-50 flex justify-between items-center">
-          <h3 className="text-lg font-bold">Geçmiş Teklifler</h3>
+          <h3 className="text-lg font-bold text-slate-700">Geçmiş Teklifler</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="bg-gray-50 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              <tr className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 <th className="px-6 py-4">Teklif No</th>
                 <th className="px-6 py-4">Müşteri</th>
                 <th className="px-6 py-4">Tarih</th>
@@ -432,23 +468,23 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
                 <th className="px-6 py-4 text-right">İşlemler</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody className="divide-y divide-slate-50">
               {proposals.map(p => (
-                <tr key={p.id} className="hover:bg-gray-50 transition">
-                  <td className="px-6 py-4 font-mono text-xs font-bold text-blue-600">{p.id}</td>
-                  <td className="px-6 py-4 font-bold text-gray-800">{p.contactName}</td>
-                  <td className="px-6 py-4 text-xs text-gray-500">{new Date(p.date).toLocaleDateString('tr-TR')}</td>
-                  <td className="px-6 py-4 text-xs text-gray-500">{new Date(p.validUntil).toLocaleDateString('tr-TR')}</td>
-                  <td className="px-6 py-4 font-black text-gray-900">{formatCurrency(p.totalAmount)}</td>
+                <tr key={p.id} className="hover:bg-slate-50 transition">
+                  <td className="px-6 py-4 font-mono text-xs font-bold text-slate-600">{p.id}</td>
+                  <td className="px-6 py-4 font-bold text-slate-800">{p.contactName}</td>
+                  <td className="px-6 py-4 text-xs text-slate-500">{new Date(p.date).toLocaleDateString('tr-TR')}</td>
+                  <td className="px-6 py-4 text-xs text-slate-500">{new Date(p.validUntil).toLocaleDateString('tr-TR')}</td>
+                  <td className="px-6 py-4 font-black text-slate-900">{formatCurrency(p.totalAmount)}</td>
                   <td className="px-6 py-4">
-                    <span className="px-3 py-1 rounded-full text-[10px] font-black bg-blue-50 text-blue-600 uppercase">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-black bg-slate-100 text-slate-600 uppercase">
                       {p.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button 
                       onClick={() => generatePDF(p)}
-                      className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition"
+                      className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition"
                       title="PDF İndir"
                     >
                       📥 PDF
