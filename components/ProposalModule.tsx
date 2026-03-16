@@ -236,13 +236,16 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
           ${template.footerText}
         </div>
       ` : ''}
-    `);
+    `, { ADD_ATTR: ['style'] });
 
     document.body.appendChild(printElement);
 
     try {
+      // Browser'ın layout işlemini tamamlaması için kısa bir bekleme
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const canvas = await html2canvas(printElement, {
-        scale: 3, // Daha yüksek kalite için 3
+        scale: 2, // 3 yerine 2 kullanarak bellek sorunlarını önleyelim
         useCORS: true,
         logging: false,
         allowTaint: true,
@@ -265,7 +268,7 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
       pdf.save(`Teklif_${proposal.id}.pdf`);
     } catch (error) {
       console.error('PDF generation error:', error);
-      alert('PDF oluşturulurken bir hata oluştu.');
+      alert('PDF oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.');
     } finally {
       document.body.removeChild(printElement);
     }
