@@ -3,8 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Product, Contact, TransactionItem, Proposal, ProposalTemplate } from '../types';
 import { formatCurrency } from '../utils/helpers';
 import { dataService } from '../services/dataService';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 
 interface ProposalModuleProps {
   products: Product[];
@@ -110,7 +108,11 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ products, contacts, com
     alert('Teklif taslağı kaydedildi.');
   };
 
-  const generatePDF = (proposal: Proposal) => {
+  const generatePDF = async (proposal: Proposal) => {
+    // Dynamic import to avoid build-time resolution issues
+    const { jsPDF } = await import('jspdf');
+    await import('jspdf-autotable');
+    
     const doc = new jsPDF();
     
     // Header
