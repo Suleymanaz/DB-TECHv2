@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Product, Contact, TransactionItem, Proposal, ProposalTemplate } from '../types';
 import { formatCurrency } from '../utils/helpers';
 import { dataService } from '../services/dataService';
-import { jsPDF } from 'jspdf';
+import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 interface ProposalModuleProps {
