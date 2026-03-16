@@ -220,7 +220,7 @@ const Inventory: React.FC<InventoryProps> = ({ products, onUpsert, onBulkUpsert,
                 <th className="py-5 px-6">Stok</th>
                 {showCosts && <th className="py-5 px-6">KDV Hariç Alış</th>}
                 {showCosts && <th className="py-5 px-6">Toplam Tutar (KDV Hariç)</th>}
-                <th className="py-5 px-6">Satış Fiyatı</th>
+                <th className="py-5 px-6">Satış Fiyatı (KDV Dahil)</th>
                 <th className="py-5 px-6 text-right">İşlem</th>
               </tr>
             </thead>
