@@ -97,10 +97,10 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
   const generatePDF = async (proposal: Proposal) => {
     const { jsPDF } = await import('jspdf');
     
-    // Helper to convert image to base64 to avoid CORS issues with html2canvas
+    // 1. Logo URL'sini Base64'e çevir (CORS için gerekli)
     const getBase64Image = async (url: string): Promise<string> => {
       try {
-        const response = await fetch(url);
+        const response = await fetch(url, { mode: 'cors' });
         const blob = await response.blob();
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
@@ -109,7 +109,7 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
           reader.readAsDataURL(blob);
         });
       } catch (e) {
-        console.error("Logo fetch error:", e);
+        console.error("Logo fetch error (CORS?):", e);
         return '';
       }
     };
@@ -134,13 +134,14 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
     const accentColor = '#f8fafc'; // Very light gray for boxes
     const borderColor = '#e2e8f0';
 
-    const logoHtml = logoBase64 ? `<img src="${logoBase64}" style="max-height: 70px; max-width: 200px; margin-bottom: 15px; object-fit: contain;" />` : '';
+    // Logoyu HTML'den siliyoruz, ancak yerini boş bırakıyoruz (width/height ayarlı div)
+    const logoPlaceholder = `<div style="width: 200px; height: 70px; margin-bottom: 15px;"></div>`;
     
     printElement.innerHTML = DOMPurify.sanitize(`
       <div style="flex: 1;">
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
           <div>
-            ${logoHtml}
+            ${logoPlaceholder}
             <h1 style="font-size: 28px; font-weight: 800; color: ${softColor}; margin: 0; letter-spacing: -1px;">TEKLİF FORMU</h1>
           </div>
           <div style="text-align: right; font-size: 11px; color: #94a3b8;">
@@ -241,7 +242,7 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
 
     try {
       const canvas = await html2canvas(printElement, {
-        scale: 2,
+        scale: 3, // Daha yüksek kalite için 3
         useCORS: true,
         logging: false,
         allowTaint: true,
@@ -250,14 +251,17 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
       
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const pdfWidth = pdf.internal.pageSize.getWidth();
       
-      // Calculate image dimensions to fit A4
-      const imgProps = pdf.getImageProperties(imgData);
-      const renderWidth = pdfWidth;
-      const renderHeight = (imgProps.height * renderWidth) / imgProps.width;
+      // 1. Arka planı (tabloyu vs.) ekle
+      pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
       
-      pdf.addImage(imgData, 'PNG', 0, 0, renderWidth, renderHeight);
+      // 2. Logoyu Üzerine "Yapıştır" (En Garanti Yol)
+      if (logoBase64) {
+        // Koordinatlar: x=20mm (sol margin), y=20mm (üst margin)
+        // Boyut: Genişlik=50mm, Yükseklik=25mm (Orantıyı korumak için ayarlanabilir)
+        pdf.addImage(logoBase64, 'PNG', 20, 20, 50, 25, undefined, 'FAST');
+      }
+
       pdf.save(`Teklif_${proposal.id}.pdf`);
     } catch (error) {
       console.error('PDF generation error:', error);
