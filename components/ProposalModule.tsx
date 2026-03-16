@@ -103,6 +103,7 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
       const getBase64FromUrl = async (url: string): Promise<string | null> => {
         try {
           const response = await fetch(url);
+          if (!response.ok) return null;
           const blob = await response.blob();
           return new Promise((resolve) => {
             const reader = new FileReader();
@@ -120,7 +121,7 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
       // 2. Gizli Elementi Oluştur
       const printElement = document.createElement('div');
       Object.assign(printElement.style, {
-        position: 'fixed',
+        position: 'absolute',
         left: '-9999px',
         top: '0',
         width: '210mm',
@@ -133,9 +134,9 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
       const accentColor = '#f8fafc';
       const borderColor = '#e2e8f0';
 
-      // 3. İçeriği Hazırla (Gelişmiş UI Tasarımı ile)
+      // 3. İçeriği Hazırla (CSS özelliklerini kebab-case yaptık)
       printElement.innerHTML = DOMPurify.sanitize(`
-        <div style="padding: 20mm; min-height: 297mm; display: flex; flexDirection: column;">
+        <div style="padding: 20mm; min-height: 297mm; display: flex; flex-direction: column;">
           <div style="flex: 1;">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
               <div>
@@ -240,7 +241,7 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
       document.body.appendChild(printElement);
 
       // 4. Render Beklemesi (Kritik!)
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 800));
 
       // 5. Canvas ve PDF Oluşturma
       const canvas = await html2canvas(printElement, {
@@ -251,7 +252,7 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
         backgroundColor: '#ffffff'
       });
       
-      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
       const pdf = new jsPDF('p', 'mm', 'a4');
       pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
       
