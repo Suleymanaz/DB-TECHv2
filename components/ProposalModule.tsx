@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Product, Contact, TransactionItem, Proposal, ProposalTemplate } from '../types';
 import { formatCurrency } from '../utils/helpers';
 import { dataService } from '../services/dataService';
+import autoTable from 'jspdf-autotable';
 
 interface ProposalModuleProps {
   products: Product[];
