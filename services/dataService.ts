@@ -1,6 +1,6 @@
 
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
-import { Product, Contact, Transaction, User, UserRole, TransactionType, Tenant, AuditLog, ContactType, Expense } from '../types';
+import { Product, Contact, Transaction, User, UserRole, TransactionType, Tenant, AuditLog, ContactType, Expense, Proposal, ProposalTemplate } from '../types';
 
 class DataService {
   private useLive = isSupabaseConfigured();
@@ -506,6 +506,87 @@ class DataService {
               }
           }
       }
+  }
+
+  async getProposalTemplate(companyId: string): Promise<ProposalTemplate | null> {
+    if (!this.useLive) {
+      const local = localStorage.getItem(`db_erp_template_${companyId}`);
+      return local ? JSON.parse(local) : null;
+    }
+    const { data, error } = await supabase.from('proposal_templates').select('*').eq('company_id', companyId).single();
+    if (error || !data) return null;
+    return {
+      id: data.id,
+      companyId: data.company_id,
+      logoUrl: data.logo_url,
+      headerText: data.header_text,
+      footerText: data.footer_text,
+      bankDetails: data.bank_details,
+      terms: data.terms
+    };
+  }
+
+  async saveProposalTemplate(template: ProposalTemplate): Promise<void> {
+    if (!this.useLive) {
+      localStorage.setItem(`db_erp_template_${template.companyId}`, JSON.stringify(template));
+      return;
+    }
+    await supabase.from('proposal_templates').upsert({
+      id: template.id,
+      company_id: template.companyId,
+      logo_url: template.logoUrl,
+      header_text: template.headerText,
+      footer_text: template.footerText,
+      bank_details: template.bankDetails,
+      terms: template.terms
+    });
+  }
+
+  async getProposals(companyId: string): Promise<Proposal[]> {
+    if (!this.useLive) {
+      const local = localStorage.getItem(`db_erp_proposals_${companyId}`);
+      return local ? JSON.parse(local) : [];
+    }
+    const { data, error } = await supabase.from('proposals').select('*').eq('company_id', companyId).order('date', { ascending: false });
+    if (error) return [];
+    return data.map((p: any) => ({
+      id: p.id,
+      companyId: p.company_id,
+      contactId: p.contact_id,
+      contactName: p.contact_name,
+      items: p.items,
+      subtotal: Number(p.subtotal),
+      totalDiscount: Number(p.total_discount),
+      totalAmount: Number(p.total_amount),
+      date: p.date,
+      validUntil: p.valid_until,
+      status: p.status,
+      notes: p.notes
+    }));
+  }
+
+  async saveProposal(proposal: Proposal): Promise<void> {
+    if (!this.useLive) {
+      const proposals = await this.getProposals(proposal.companyId);
+      const exists = proposals.find(p => p.id === proposal.id);
+      const updated = exists ? proposals.map(p => p.id === proposal.id ? proposal : p) : [proposal, ...proposals];
+      localStorage.setItem(`db_erp_proposals_${proposal.companyId}`, JSON.stringify(updated));
+      return;
+    }
+    await supabase.from('proposals').upsert({
+      id: proposal.id,
+      company_id: proposal.companyId,
+      contact_id: proposal.contactId,
+      contact_name: proposal.contactName,
+      items: proposal.items,
+      subtotal: proposal.subtotal,
+      total_discount: proposal.totalDiscount,
+      total_amount: proposal.totalAmount,
+      date: proposal.date,
+      valid_until: proposal.validUntil,
+      status: proposal.status,
+      notes: proposal.notes
+    });
   }
 }
 
