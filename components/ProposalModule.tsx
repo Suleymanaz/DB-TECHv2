@@ -5,6 +5,7 @@ import { formatCurrency } from '../utils/helpers';
 import { dataService } from '../services/dataService';
 import html2canvas from 'html2canvas';
 import DOMPurify from 'dompurify';
+import { jsPDF } from 'jspdf';
 
 interface ProposalModuleProps {
   products: Product[];
@@ -95,157 +96,159 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
   };
 
   const generatePDF = async (proposal: Proposal) => {
-    const { jsPDF } = await import('jspdf');
-    
-    // 1. Logo URL'sini Base64'e çevir (CORS için gerekli)
-    const getBase64Image = async (url: string): Promise<string> => {
-      try {
-        const response = await fetch(url, { mode: 'cors' });
-        const blob = await response.blob();
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-      } catch (e) {
-        console.error("Logo fetch error (CORS?):", e);
-        return '';
-      }
-    };
+    console.log("PDF oluşturma başlatıldı...", proposal.id);
+    try {
+      // 1. Logo URL'sini Base64'e çevir (CORS için gerekli)
+      const getBase64Image = async (url: string): Promise<string> => {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) return '';
+          const blob = await res.blob();
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch (e) {
+          console.warn("Logo fetch error:", e);
+          return '';
+        }
+      };
 
-    const logoBase64 = template?.logoUrl ? await getBase64Image(template.logoUrl) : '';
-    
-    // Create a hidden element for PDF generation
-    const printElement = document.createElement('div');
-    printElement.style.position = 'fixed';
-    printElement.style.left = '-9999px';
-    printElement.style.top = '0';
-    printElement.style.width = '210mm'; // A4 width
-    printElement.style.minHeight = '297mm'; // A4 height
-    printElement.style.backgroundColor = 'white';
-    printElement.style.padding = '20mm';
-    printElement.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
-    printElement.style.color = '#1e293b';
-    printElement.style.display = 'flex';
-    printElement.style.flexDirection = 'column';
+      const logoBase64 = template?.logoUrl ? await getBase64Image(template.logoUrl) : '';
+      
+      // Create a hidden element for PDF generation
+      const printElement = document.createElement('div');
+      printElement.style.position = 'absolute';
+      printElement.style.left = '0';
+      printElement.style.top = '0';
+      printElement.style.opacity = '0';
+      printElement.style.pointerEvents = 'none';
+      printElement.style.width = '210mm';
+      printElement.style.backgroundColor = 'white';
+      printElement.style.padding = '20mm';
+      printElement.style.fontFamily = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+      printElement.style.color = '#1e293b';
+      printElement.style.display = 'flex';
+      printElement.style.flexDirection = 'column';
+      printElement.style.zIndex = '-1000';
 
-    const softColor = '#64748b'; // Soft slate
-    const accentColor = '#f8fafc'; // Very light gray for boxes
-    const borderColor = '#e2e8f0';
+      const softColor = '#64748b'; // Soft slate
+      const accentColor = '#f8fafc'; // Very light gray for boxes
+      const borderColor = '#e2e8f0';
 
-    // Logoyu HTML'den siliyoruz, ancak yerini boş bırakıyoruz (width/height ayarlı div)
-    const logoPlaceholder = `<div style="width: 200px; height: 70px; margin-bottom: 15px;"></div>`;
-    
-    printElement.innerHTML = DOMPurify.sanitize(`
-      <div style="flex: 1;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
-          <div>
-            ${logoPlaceholder}
-            <h1 style="font-size: 28px; font-weight: 800; color: ${softColor}; margin: 0; letter-spacing: -1px;">TEKLİF FORMU</h1>
-          </div>
-          <div style="text-align: right; font-size: 11px; color: #94a3b8;">
-            <div style="background: ${accentColor}; padding: 15px; border-radius: 12px; border: 1px solid ${borderColor};">
-              <p style="margin: 0 0 4px 0;"><strong style="color: ${softColor};">Teklif No:</strong> <span style="color: #1e293b;">${proposal.id}</span></p>
-              <p style="margin: 0 0 4px 0;"><strong style="color: ${softColor};">Tarih:</strong> <span style="color: #1e293b;">${new Date(proposal.date).toLocaleDateString('tr-TR')}</span></p>
-              <p style="margin: 0;"><strong style="color: ${softColor};">Geçerlilik:</strong> <span style="color: #1e293b;">${new Date(proposal.validUntil).toLocaleDateString('tr-TR')}</span></p>
+      // Logoyu HTML'den siliyoruz, ancak yerini boş bırakıyoruz (width/height ayarlı div)
+      const logoPlaceholder = `<div style="width: 200px; height: 70px; margin-bottom: 15px;"></div>`;
+      
+      printElement.innerHTML = DOMPurify.sanitize(`
+        <div style="flex: 1;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px;">
+            <div>
+              ${logoPlaceholder}
+              <h1 style="font-size: 28px; font-weight: 800; color: ${softColor}; margin: 0; letter-spacing: -1px;">TEKLİF FORMU</h1>
+            </div>
+            <div style="text-align: right; font-size: 11px; color: #94a3b8;">
+              <div style="background: ${accentColor}; padding: 15px; border-radius: 12px; border: 1px solid ${borderColor};">
+                <p style="margin: 0 0 4px 0;"><strong style="color: ${softColor};">Teklif No:</strong> <span style="color: #1e293b;">${proposal.id}</span></p>
+                <p style="margin: 0 0 4px 0;"><strong style="color: ${softColor};">Tarih:</strong> <span style="color: #1e293b;">${new Date(proposal.date).toLocaleDateString('tr-TR')}</span></p>
+                <p style="margin: 0;"><strong style="color: ${softColor};">Geçerlilik:</strong> <span style="color: #1e293b;">${new Date(proposal.validUntil).toLocaleDateString('tr-TR')}</span></p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div style="margin-bottom: 35px; background: ${accentColor}; padding: 20px; border-radius: 16px; border: 1px solid ${borderColor};">
-          <h3 style="font-size: 10px; font-weight: 800; color: #94a3b8; margin: 0 0 10px 0; text-transform: uppercase; tracking: 1px;">Müşteri Bilgileri</h3>
-          <p style="font-size: 18px; font-weight: 700; color: #1e293b; margin: 0;">${proposal.contactName}</p>
-          ${proposal.contactPerson ? `<p style="font-size: 13px; color: #64748b; margin: 6px 0 0 0; display: flex; align-items: center;"><span style="margin-right: 5px;">👤</span> İlgili Kişi: <strong style="color: #1e293b; margin-left: 4px;">${proposal.contactPerson}</strong></p>` : ''}
-        </div>
+          <div style="margin-bottom: 35px; background: ${accentColor}; padding: 20px; border-radius: 16px; border: 1px solid ${borderColor};">
+            <h3 style="font-size: 10px; font-weight: 800; color: #94a3b8; margin: 0 0 10px 0; text-transform: uppercase; tracking: 1px;">Müşteri Bilgileri</h3>
+            <p style="font-size: 18px; font-weight: 700; color: #1e293b; margin: 0;">${proposal.contactName}</p>
+            ${proposal.contactPerson ? `<p style="font-size: 13px; color: #64748b; margin: 6px 0 0 0; display: flex; align-items: center;"><span style="margin-right: 5px;">👤</span> İlgili Kişi: <strong style="color: #1e293b; margin-left: 4px;">${proposal.contactPerson}</strong></p>` : ''}
+          </div>
 
-        <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 30px; font-size: 12px; border: 1px solid ${borderColor}; border-radius: 12px; overflow: hidden;">
-          <thead>
-            <tr style="background-color: ${softColor}; color: white;">
-              <th style="padding: 12px 15px; text-align: left; font-weight: 600;">#</th>
-              <th style="padding: 12px 15px; text-align: left; font-weight: 600;">Ürün / Hizmet Açıklaması</th>
-              <th style="padding: 12px 15px; text-align: center; font-weight: 600;">Miktar</th>
-              <th style="padding: 12px 15px; text-align: right; font-weight: 600;">Birim Fiyat</th>
-              <th style="padding: 12px 15px; text-align: right; font-weight: 600;">İskonto</th>
-              <th style="padding: 12px 15px; text-align: right; font-weight: 600;">Toplam</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${proposal.items.map((item, index) => `
-              <tr style="background-color: ${index % 2 === 0 ? 'white' : '#fcfcfd'};">
-                <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; color: #94a3b8;">${index + 1}</td>
-                <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; font-weight: 600; color: #1e293b;">${item.productName}</td>
-                <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; text-align: center; color: #475569;">${item.quantity}</td>
-                <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; text-align: right; color: #475569;">${formatCurrency(item.unitPrice)}</td>
-                <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; text-align: right; color: #ef4444;">${item.discount ? formatCurrency(item.discount) : '-'}</td>
-                <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; text-align: right; font-weight: 700; color: #1e293b;">${formatCurrency(calculateItemTotal(item))}</td>
+          <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 30px; font-size: 12px; border: 1px solid ${borderColor}; border-radius: 12px; overflow: hidden;">
+            <thead>
+              <tr style="background-color: ${softColor}; color: white;">
+                <th style="padding: 12px 15px; text-align: left; font-weight: 600;">#</th>
+                <th style="padding: 12px 15px; text-align: left; font-weight: 600;">Ürün / Hizmet Açıklaması</th>
+                <th style="padding: 12px 15px; text-align: center; font-weight: 600;">Miktar</th>
+                <th style="padding: 12px 15px; text-align: right; font-weight: 600;">Birim Fiyat</th>
+                <th style="padding: 12px 15px; text-align: right; font-weight: 600;">İskonto</th>
+                <th style="padding: 12px 15px; text-align: right; font-weight: 600;">Toplam</th>
               </tr>
-            `).join('')}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              ${proposal.items.map((item, index) => `
+                <tr style="background-color: ${index % 2 === 0 ? 'white' : '#fcfcfd'};">
+                  <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; color: #94a3b8;">${index + 1}</td>
+                  <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; font-weight: 600; color: #1e293b;">${item.productName}</td>
+                  <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; text-align: center; color: #475569;">${item.quantity}</td>
+                  <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; text-align: right; color: #475569;">${formatCurrency(item.unitPrice)}</td>
+                  <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; text-align: right; color: #ef4444;">${item.discount ? formatCurrency(item.discount) : '-'}</td>
+                  <td style="padding: 12px 15px; border-top: 1px solid ${borderColor}; text-align: right; font-weight: 700; color: #1e293b;">${formatCurrency(calculateItemTotal(item))}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
 
-        <div style="display: flex; justify-content: flex-end; margin-bottom: 40px;">
-          <div style="width: 280px; background: ${accentColor}; padding: 20px; border-radius: 16px; border: 1px solid ${borderColor};">
-            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #64748b;">
-              <span>Ara Toplam:</span>
-              <span style="color: #1e293b; font-weight: 600;">${formatCurrency(proposal.subtotal)}</span>
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 40px;">
+            <div style="width: 280px; background: ${accentColor}; padding: 20px; border-radius: 16px; border: 1px solid ${borderColor};">
+              <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #64748b;">
+                <span>Ara Toplam:</span>
+                <span style="color: #1e293b; font-weight: 600;">${formatCurrency(proposal.subtotal)}</span>
+              </div>
+              ${proposal.totalDiscount > 0 ? `
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #ef4444;">
+                  <span>Toplam İskonto:</span>
+                  <span style="font-weight: 600;">-${formatCurrency(proposal.totalDiscount)}</span>
+                </div>
+              ` : ''}
+              <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #64748b;">
+                <span>KDV (%${vatRate}):</span>
+                <span style="color: #1e293b; font-weight: 600;">${formatCurrency(proposal.vatTotal || 0)}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding: 12px 0 0 0; border-top: 1px dashed ${borderColor}; margin-top: 10px; font-weight: 800; font-size: 20px; color: ${softColor};">
+                <span>GENEL TOPLAM</span>
+                <span>${formatCurrency(proposal.totalAmount)}</span>
+              </div>
             </div>
-            ${proposal.totalDiscount > 0 ? `
-              <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #ef4444;">
-                <span>Toplam İskonto:</span>
-                <span style="font-weight: 600;">-${formatCurrency(proposal.totalDiscount)}</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            ${proposal.notes ? `
+              <div style="background: #fff; padding: 15px; border-radius: 12px; border: 1px solid ${borderColor};">
+                <h4 style="font-size: 11px; font-weight: 800; color: #94a3b8; margin: 0 0 8px 0; text-transform: uppercase;">Teklif Notları</h4>
+                <p style="font-size: 11px; color: #475569; margin: 0; white-space: pre-wrap; line-height: 1.5;">${proposal.notes}</p>
+              </div>
+            ` : '<div></div>'}
+
+            ${template?.bankDetails ? `
+              <div style="background: #fff; padding: 15px; border-radius: 12px; border: 1px solid ${borderColor};">
+                <h4 style="font-size: 11px; font-weight: 800; color: #94a3b8; margin: 0 0 8px 0; text-transform: uppercase;">Banka Bilgileri</h4>
+                <p style="font-size: 11px; color: #475569; margin: 0; white-space: pre-wrap; line-height: 1.5;">${template.bankDetails}</p>
               </div>
             ` : ''}
-            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; color: #64748b;">
-              <span>KDV (%${vatRate}):</span>
-              <span style="color: #1e293b; font-weight: 600;">${formatCurrency(proposal.vatTotal || 0)}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 12px 0 0 0; border-top: 1px dashed ${borderColor}; margin-top: 10px; font-weight: 800; font-size: 20px; color: ${softColor};">
-              <span>GENEL TOPLAM</span>
-              <span>${formatCurrency(proposal.totalAmount)}</span>
-            </div>
           </div>
-        </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-          ${proposal.notes ? `
-            <div style="background: #fff; padding: 15px; border-radius: 12px; border: 1px solid ${borderColor};">
-              <h4 style="font-size: 11px; font-weight: 800; color: #94a3b8; margin: 0 0 8px 0; text-transform: uppercase;">Teklif Notları</h4>
-              <p style="font-size: 11px; color: #475569; margin: 0; white-space: pre-wrap; line-height: 1.5;">${proposal.notes}</p>
-            </div>
-          ` : '<div></div>'}
-
-          ${template?.bankDetails ? `
-            <div style="background: #fff; padding: 15px; border-radius: 12px; border: 1px solid ${borderColor};">
-              <h4 style="font-size: 11px; font-weight: 800; color: #94a3b8; margin: 0 0 8px 0; text-transform: uppercase;">Banka Bilgileri</h4>
-              <p style="font-size: 11px; color: #475569; margin: 0; white-space: pre-wrap; line-height: 1.5;">${template.bankDetails}</p>
+          ${template?.terms ? `
+            <div style="margin-top: 20px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid ${borderColor};">
+              <h4 style="font-size: 11px; font-weight: 800; color: #94a3b8; margin: 0 0 8px 0; text-transform: uppercase;">Şartlar ve Koşullar</h4>
+              <p style="font-size: 11px; color: #475569; margin: 0; white-space: pre-wrap; line-height: 1.5;">${template.terms}</p>
             </div>
           ` : ''}
         </div>
 
-        ${template?.terms ? `
-          <div style="margin-top: 20px; background: #fff; padding: 15px; border-radius: 12px; border: 1px solid ${borderColor};">
-            <h4 style="font-size: 11px; font-weight: 800; color: #94a3b8; margin: 0 0 8px 0; text-transform: uppercase;">Şartlar ve Koşullar</h4>
-            <p style="font-size: 11px; color: #475569; margin: 0; white-space: pre-wrap; line-height: 1.5;">${template.terms}</p>
+        ${template?.footerText ? `
+          <div style="margin-top: 40px; padding-top: 15px; border-top: 1px solid ${borderColor}; text-align: center; font-size: 10px; color: #94a3b8;">
+            ${template.footerText}
           </div>
         ` : ''}
-      </div>
+      `, { ADD_ATTR: ['style'] });
 
-      ${template?.footerText ? `
-        <div style="margin-top: 40px; padding-top: 15px; border-top: 1px solid ${borderColor}; text-align: center; font-size: 10px; color: #94a3b8;">
-          ${template.footerText}
-        </div>
-      ` : ''}
-    `, { ADD_ATTR: ['style'] });
+      document.body.appendChild(printElement);
 
-    document.body.appendChild(printElement);
-
-    try {
       // Browser'ın layout işlemini tamamlaması için kısa bir bekleme
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 150));
 
       const canvas = await html2canvas(printElement, {
-        scale: 2, // 3 yerine 2 kullanarak bellek sorunlarını önleyelim
+        scale: 2,
         useCORS: true,
         logging: false,
         allowTaint: true,
@@ -260,17 +263,17 @@ const ProposalModule: React.FC<ProposalModuleProps> = ({ companyId }) => {
       
       // 2. Logoyu Üzerine "Yapıştır" (En Garanti Yol)
       if (logoBase64) {
-        // Koordinatlar: x=20mm (sol margin), y=20mm (üst margin)
-        // Boyut: Genişlik=50mm, Yükseklik=25mm (Orantıyı korumak için ayarlanabilir)
         pdf.addImage(logoBase64, 'PNG', 20, 20, 50, 25, undefined, 'FAST');
       }
 
       pdf.save(`Teklif_${proposal.id}.pdf`);
+      document.body.removeChild(printElement);
     } catch (error) {
       console.error('PDF generation error:', error);
       alert('PDF oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.');
-    } finally {
-      document.body.removeChild(printElement);
+      // Cleanup if needed
+      const el = document.querySelector('[style*="left: -9999px"]');
+      if (el) el.remove();
     }
   };
 
