@@ -54,6 +54,7 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
     if (qty > product.stock) return alert('Yetersiz stok!');
 
     const existingIndex = cart.findIndex(item => item.productId === product.id && item.discount === discount);
+    const costPrice = product.pricing.purchasePrice * product.pricing.exchangeRate;
     
     if (existingIndex > -1) {
       const updatedCart = [...cart];
@@ -61,6 +62,7 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
         return alert('Sepetteki toplam miktar stok miktarını aşıyor!');
       }
       updatedCart[existingIndex].quantity += qty;
+      updatedCart[existingIndex].costPrice = costPrice;
       setCart(updatedCart);
     } else {
       setCart([...cart, {
@@ -68,7 +70,8 @@ const SalesModule: React.FC<SalesModuleProps> = ({ products, contacts, onAddTran
         productName: product.name,
         quantity: qty,
         unitPrice: product.sellingPrice,
-        discount: discount > 0 ? discount : undefined
+        discount: discount > 0 ? discount : undefined,
+        costPrice: costPrice
       }]);
     }
     setQty(1);
