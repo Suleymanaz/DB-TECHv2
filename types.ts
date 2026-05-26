@@ -62,6 +62,7 @@ export interface TransactionItem {
   discount?: number;
   isLabor?: boolean;
   newPurchasePrice?: number;
+  costPrice?: number;
 }
 
 export interface Pricing {
