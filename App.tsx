@@ -291,7 +291,7 @@ const App: React.FC = () => {
             <ExpenseManager expenses={expenses} onAdd={handleAddExpense} onDelete={handleDeleteExpense} user={currentUser} />
           )}
           {activeTab === 'finance' && (
-            <FinancialReports transactions={transactions} expenses={expenses} />
+            <FinancialReports transactions={transactions} expenses={expenses} products={products} />
           )}
           {activeTab === 'settings' && (
               <AppSettings tenant={currentTenant!} onUpdate={handleUpdateTenantConfig} />
